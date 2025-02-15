@@ -19,14 +19,22 @@ interface WizardState {
   removeQAItem: (index: number) => void;
 }
 
+export const defaultAvatars = [
+  "/avatars/robot-blue.svg",
+  "/avatars/robot-purple.svg",
+  "/avatars/assistant-1.svg",
+  "/avatars/assistant-2.svg",
+  "/avatars/bot-minimal.svg",
+];
+
 export const useWizardStore = create<WizardState>((set) => ({
   currentStep: 0,
   companyName: '',
-  welcomeMessage: 'Hello! How can I help you today?',
+  welcomeMessage: '',
   primaryColor: '#2563eb',
   fontFamily: 'Inter',
   position: 'bottom-right',
-  avatarUrl: '',
+  avatarUrl: defaultAvatars[0],
   bubbleStyle: 'rounded',
   backgroundColor: '#ffffff',
   buttonStyle: 'solid',

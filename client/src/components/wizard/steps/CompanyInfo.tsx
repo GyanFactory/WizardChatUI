@@ -1,11 +1,10 @@
 import { useWizardStore } from "@/store/wizardStore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 
 export default function CompanyInfo() {
-  const { companyName, welcomeMessage, updateConfig } = useWizardStore();
+  const { companyName, updateConfig } = useWizardStore();
 
   return (
     <div className="space-y-6">
@@ -16,7 +15,7 @@ export default function CompanyInfo() {
         </p>
       </div>
 
-      <Card className="p-6 space-y-6">
+      <Card className="p-6">
         <div className="space-y-2">
           <Label htmlFor="companyName">Company Name</Label>
           <Input
@@ -25,17 +24,9 @@ export default function CompanyInfo() {
             onChange={(e) => updateConfig({ companyName: e.target.value })}
             placeholder="Enter your company name"
           />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="welcomeMessage">Welcome Message</Label>
-          <Textarea
-            id="welcomeMessage"
-            value={welcomeMessage}
-            onChange={(e) => updateConfig({ welcomeMessage: e.target.value })}
-            placeholder="Enter the welcome message for your chatbot"
-            rows={4}
-          />
+          <p className="text-sm text-gray-500 mt-2">
+            This name will be displayed in the chat window header
+          </p>
         </div>
       </Card>
     </div>
