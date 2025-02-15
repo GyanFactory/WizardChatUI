@@ -15,36 +15,27 @@ export default function Embed() {
   // Save configuration when component mounts
   const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/chatbot-config", {
+      const { config: savedConfig } = await apiRequest("/api/chatbot-config", {
         method: "POST",
-        headers: {
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
-          companyName: config.companyName || '',
-          welcomeMessage: config.welcomeMessage || 'Welcome! How can I help you?',
-          primaryColor: config.primaryColor || '#000000',
-          fontFamily: config.fontFamily || 'Inter',
-          position: config.position || 'right',
-          avatarUrl: config.avatarUrl || '/avatars/bot-minimal.svg',
-          bubbleStyle: config.bubbleStyle || 'modern',
-          backgroundColor: config.backgroundColor || '#ffffff',
-          buttonStyle: config.buttonStyle || 'rounded',
+          companyName: config.companyName,
+          welcomeMessage: config.welcomeMessage,
+          primaryColor: config.primaryColor,
+          fontFamily: config.fontFamily,
+          position: config.position,
+          avatarUrl: config.avatarUrl,
+          bubbleStyle: config.bubbleStyle,
+          backgroundColor: config.backgroundColor,
+          buttonStyle: config.buttonStyle,
         }),
       });
-      
-      if (!response.config) {
-        throw new Error('Invalid server response');
-      }
-      
-      setConfigId(response.config.id);
-      return response.config;
+      setConfigId(savedConfig.id);
+      return savedConfig;
     },
-    onError: (error) => {
-      console.error('Save config error:', error);
+    onError: () => {
       toast({
         title: "Error",
-        description: "Failed to save chatbot configuration. Please check all required fields.",
+        description: "Failed to save chatbot configuration",
         variant: "destructive",
       });
     },
