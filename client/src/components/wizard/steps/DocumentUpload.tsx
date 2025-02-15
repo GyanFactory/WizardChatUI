@@ -1,16 +1,69 @@
+import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, File, X } from "lucide-react";
-import { useState } from "react";
+import { Upload, File, X, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useWizardStore } from "@/store/wizardStore";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function DocumentUpload() {
   const [file, setFile] = useState<File | null>(null);
+  const { toast } = useToast();
+  const { setStep } = useWizardStore();
+
+  const uploadMutation = useMutation({
+    mutationFn: async (formData: FormData) => {
+      const response = await apiRequest('POST', '/api/documents/upload', formData);
+      const data = await response.json();
+      return data;
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success!",
+        description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
+      });
+      setStep(2); // Move to Q&A Management step
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      if (selectedFile.type !== "application/pdf") {
+        toast({
+          title: "Invalid file type",
+          description: "Please upload a PDF file",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        toast({
+          title: "File too large",
+          description: "Please upload a file smaller than 5MB",
+          variant: "destructive",
+        });
+        return;
+      }
+      setFile(selectedFile);
     }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+    uploadMutation.mutate(formData);
   };
 
   return (
@@ -39,9 +92,13 @@ export default function DocumentUpload() {
                 className="hidden"
                 accept=".pdf"
                 onChange={handleFileChange}
+                disabled={uploadMutation.isPending}
               />
               <p className="mt-2 text-sm text-gray-500">
                 or drag and drop your file here
+              </p>
+              <p className="mt-1 text-xs text-gray-400">
+                Maximum file size: 5MB
               </p>
             </div>
           </div>
@@ -52,13 +109,37 @@ export default function DocumentUpload() {
                 <File className="h-6 w-6 text-blue-600" />
                 <span className="text-sm font-medium">{file.name}</span>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setFile(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-2">
+                {!uploadMutation.isPending && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFile(null)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+                <Button
+                  onClick={handleUpload}
+                  disabled={uploadMutation.isPending}
+                >
+                  {uploadMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Upload & Generate Q&A"
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {uploadMutation.isPending && (
+            <div className="text-sm text-gray-600 text-center">
+              <p>Analyzing your document and generating Q&A pairs...</p>
+              <p>This may take a few minutes depending on the document size.</p>
             </div>
           )}
         </div>
