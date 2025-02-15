@@ -7,6 +7,10 @@ import {
   type InsertQAItem
 } from "@shared/schema";
 import { users, type User, type InsertUser } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { chatbotConfig } from "../shared/schema"; // Added import for chatbotConfig
+
 
 export interface IStorage {
   // User operations
@@ -17,6 +21,7 @@ export interface IStorage {
   // ChatbotConfig operations
   getChatbotConfig(id: number): Promise<ChatbotConfig | undefined>;
   createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig>;
+  updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null>; //Added update function
 
   // Document operations
   getDocument(id: number): Promise<Document | undefined>;
@@ -79,6 +84,14 @@ export class MemStorage implements IStorage {
     const newConfig = { ...config, id };
     this.configs.set(id, newConfig);
     return newConfig;
+  }
+
+    async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
+    const existingConfig = this.configs.get(id);
+    if (!existingConfig) return null;
+    const updatedConfig = { ...existingConfig, ...config };
+    this.configs.set(id, updatedConfig);
+    return updatedConfig;
   }
 
   async getDocument(id: number): Promise<Document | undefined> {

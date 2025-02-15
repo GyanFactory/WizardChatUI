@@ -114,6 +114,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate embed code for chatbot
+  app.get("/api/embed/:configId", async (req, res) => {
+    try {
+      const configId = parseInt(req.params.configId);
+      const config = await storage.getChatbotConfig(configId);
+      
+      if (!config) {
+        res.status(404).json({ error: "Configuration not found" });
+        return;
+      }
+
+      const embedCode = `
+<!-- AI Chatbot Widget -->
+<script>
+  (function(w,d,s,o,f,js,fjs){
+    w['AIChatWidget']=o;
+    w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments)};
+    js=d.createElement(s),fjs=d.getElementsByTagName(s)[0];
+    js.id=o;js.src=f;js.async=1;fjs.parentNode.insertBefore(js,fjs);
+  }(window,document,'script','aiChat','/widget.js'));
+  aiChat('init', '${configId}');
+</script>`;
+
+      res.json({ embedCode });
+    } catch (err) {
+      console.error("Failed to generate embed code:", err);
+      res.status(500).json({ error: "Failed to generate embed code" });
+    }
+  });
+
   // Get Q&A items for a chatbot config
   app.get("/api/qa-items", async (req, res) => {
     try {
