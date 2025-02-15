@@ -69,9 +69,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pythonProcess.on("close", async (code) => {
         if (code !== 0) {
           console.error("PDF processing failed:", errorData);
-          res.status(500).json({ 
+          res.status(500).json({
             error: "Failed to process PDF",
-            details: errorData
+            details: errorData,
           });
           return;
         }
@@ -96,9 +96,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Cleanup uploaded file
           fs.unlinkSync(req.file!.path);
 
-          res.json({ 
+          res.json({
             document: doc,
-            qaItems: storedItems 
+            qaItems: storedItems,
           });
         } catch (err) {
           console.error("Failed to process QA items:", err);
@@ -107,9 +107,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (err) {
       console.error("Upload error:", err);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to upload file",
-        details: err instanceof Error ? err.message : String(err)
+        details: err instanceof Error ? err.message : String(err),
       });
     }
   });
@@ -123,6 +123,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (err) {
       console.error("Failed to fetch QA items:", err);
       res.status(500).json({ error: "Failed to fetch QA items" });
+    }
+  });
+
+  // Create new Q&A item
+  app.post("/api/qa-items", async (req, res) => {
+    try {
+      const { question, answer } = req.body;
+
+      if (!question || !answer) {
+        res.status(400).json({ error: "Question and answer are required" });
+        return;
+      }
+
+      const item = await storage.createQAItem({
+        configId: 1, // TODO: Get from session
+        documentId: null,
+        question,
+        answer,
+        isGenerated: false,
+      });
+
+      res.json(item);
+    } catch (err) {
+      console.error("Failed to create QA item:", err);
+      res.status(500).json({ error: "Failed to create QA item" });
     }
   });
 
