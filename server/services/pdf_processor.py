@@ -1,130 +1,86 @@
-```python
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.document_loaders import PyPDFLoader
-from sentence_transformers import SentenceTransformer
-import faiss
-import numpy as np
-import sqlite3
+import sys
+from PyPDF2 import PdfReader
 import json
-import os
+import re
+from typing import List, Dict
 
-class PDFProcessor:
-    def __init__(self):
-        # Initialize the sentence transformer model
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50
-        )
-        
-        # Initialize FAISS index
-        self.embedding_dim = 384  # Dimension for all-MiniLM-L6-v2
-        self.index = faiss.IndexFlatL2(self.embedding_dim)
-        
-        # Initialize SQLite connection
-        self.db_path = 'embeddings.db'
-        self.initialize_db()
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """Extract text from PDF in chunks."""
+    reader = PdfReader(pdf_path)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+    return text
 
-    def initialize_db(self):
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Create tables if they don't exist
-        cursor.execute('''
-        CREATE TABLE IF NOT EXISTS chunks (
-            id INTEGER PRIMARY KEY,
-            document_id INTEGER,
-            content TEXT,
-            embedding BLOB
-        )
-        ''')
-        
-        conn.commit()
-        conn.close()
+def split_text_into_chunks(text: str, chunk_size: int = 1000) -> List[str]:
+    """Split text into smaller chunks."""
+    # Split by sentences to maintain context
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    chunks = []
+    current_chunk = ""
 
-    def process_pdf(self, file_path):
-        # Load and split PDF
-        loader = PyPDFLoader(file_path)
-        pages = loader.load()
-        chunks = self.text_splitter.split_documents(pages)
-        
-        # Generate embeddings for chunks
-        texts = [chunk.page_content for chunk in chunks]
-        embeddings = self.model.encode(texts)
-        
-        # Store in FAISS index
-        self.index.add(embeddings)
-        
-        # Store in SQLite
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        for i, (text, embedding) in enumerate(zip(texts, embeddings)):
-            cursor.execute(
-                'INSERT INTO chunks (content, embedding) VALUES (?, ?)',
-                (text, embedding.tobytes())
-            )
-        
-        conn.commit()
-        conn.close()
-        
+    for sentence in sentences:
+        if len(current_chunk) + len(sentence) <= chunk_size:
+            current_chunk += sentence + " "
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = sentence + " "
+
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
+    return chunks
+
+def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
+    """Generate Q&A pairs from text chunks."""
+    qa_pairs = []
+
+    for chunk in chunks:
+        # Skip short or empty chunks
+        if len(chunk) < 50:
+            continue
+
+        # Split into sentences
+        sentences = re.split(r'(?<=[.!?])\s+', chunk)
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if len(sentence) > 50:  # Only process substantial sentences
+                # Create questions using different patterns
+                if sentence.startswith("The ") or sentence.startswith("A ") or sentence.startswith("An "):
+                    question = "What is " + sentence[4:].lower() + "?"
+                elif sentence.startswith("In ") or sentence.startswith("On ") or sentence.startswith("At "):
+                    question = "What happened " + sentence[:sentence.find(" ")+1].lower() + sentence[sentence.find(" ")+1:] + "?"
+                else:
+                    question = "Can you explain " + sentence.lower() + "?"
+
+                qa_pairs.append({
+                    "question": question,
+                    "answer": sentence
+                })
+
+    return qa_pairs
+
+def main(pdf_path: str):
+    try:
+        # Extract text
+        text = extract_text_from_pdf(pdf_path)
+
+        # Split into chunks
+        chunks = split_text_into_chunks(text)
+
         # Generate Q&A pairs
-        qa_pairs = self.generate_qa_pairs(texts)
-        return qa_pairs
+        qa_pairs = generate_qa_pairs(chunks)
 
-    def generate_qa_pairs(self, texts):
-        # For now, we'll use a simple approach to generate Q&A pairs
-        qa_pairs = []
-        
-        for text in texts:
-            # Simple heuristic to generate questions
-            sentences = text.split('.')
-            for sentence in sentences:
-                if len(sentence.strip()) > 50:  # Only process substantial sentences
-                    # Create a question by replacing key terms
-                    question = self.create_question_from_sentence(sentence)
-                    if question:
-                        qa_pairs.append({
-                            'question': question,
-                            'answer': sentence.strip()
-                        })
-        
-        return qa_pairs
+        # Output as JSON
+        print(json.dumps(qa_pairs))
 
-    def create_question_from_sentence(self, sentence):
-        # Simple question generation logic
-        sentence = sentence.strip()
-        if not sentence:
-            return None
-            
-        # Remove common starter words if they exist
-        starters = ['The', 'A', 'An', 'In', 'On', 'At', 'This', 'That']
-        for starter in starters:
-            if sentence.startswith(starter + ' '):
-                sentence = sentence[len(starter)+1:]
-                break
-        
-        # Create a "What is" question
-        return f"What is {sentence.lower()}?"
+    except Exception as e:
+        print(json.dumps({"error": str(e)}), file=sys.stderr)
+        sys.exit(1)
 
-    def search_similar(self, query, k=3):
-        # Encode the query
-        query_embedding = self.model.encode([query])
-        
-        # Search in FAISS
-        distances, indices = self.index.search(query_embedding, k)
-        
-        # Get the corresponding texts
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        results = []
-        for idx in indices[0]:
-            cursor.execute('SELECT content FROM chunks WHERE id=?', (int(idx),))
-            result = cursor.fetchone()
-            if result:
-                results.append(result[0])
-        
-        conn.close()
-        return results
-```
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(json.dumps({"error": "Please provide PDF file path"}), file=sys.stderr)
+        sys.exit(1)
+    main(sys.argv[1])

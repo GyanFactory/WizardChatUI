@@ -6,10 +6,17 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 
+// Ensure uploads directory exists
+const uploadsDir = "uploads";
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
+
 // Configure multer for file upload
 const upload = multer({
-  dest: "uploads/",
+  dest: uploadsDir,
   fileFilter: (_req, file, cb) => {
+    console.log("Received file:", file.originalname, "type:", file.mimetype);
     if (file.mimetype !== "application/pdf") {
       cb(new Error("Only PDF files are allowed"));
       return;
@@ -25,6 +32,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload PDF and generate Q&A pairs
   app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
     try {
+      console.log("Processing upload request", { body: req.body, file: req.file });
+
       if (!req.file) {
         throw new Error("No file uploaded");
       }
@@ -37,29 +46,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         createdAt: new Date().toISOString(),
       });
 
+      console.log("Created document:", doc);
+
       // Process PDF with Python service
       const pythonProcess = spawn("python", [
-        "server/services/pdf_processor.py",
+        path.join(process.cwd(), "server/services/pdf_processor.py"),
         req.file.path,
-        doc.id.toString(),
       ]);
 
       let qaData = "";
+      let errorData = "";
+
       pythonProcess.stdout.on("data", (data) => {
         qaData += data.toString();
       });
 
       pythonProcess.stderr.on("data", (data) => {
+        errorData += data.toString();
         console.error(`Python Error: ${data}`);
       });
 
       pythonProcess.on("close", async (code) => {
         if (code !== 0) {
-          res.status(500).json({ error: "Failed to process PDF" });
+          console.error("PDF processing failed:", errorData);
+          res.status(500).json({ 
+            error: "Failed to process PDF",
+            details: errorData
+          });
           return;
         }
 
         try {
+          console.log("Raw QA data:", qaData);
           const qaItems = JSON.parse(qaData);
 
           // Store Q&A pairs
@@ -72,6 +90,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               isGenerated: true,
             }))
           );
+
+          console.log(`Generated ${storedItems.length} QA pairs`);
 
           // Cleanup uploaded file
           fs.unlinkSync(req.file!.path);
@@ -87,7 +107,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (err) {
       console.error("Upload error:", err);
-      res.status(500).json({ error: "Failed to upload file" });
+      res.status(500).json({ 
+        error: "Failed to upload file",
+        details: err instanceof Error ? err.message : String(err)
+      });
     }
   });
 
@@ -98,6 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const items = await storage.getQAItems(configId);
       res.json(items);
     } catch (err) {
+      console.error("Failed to fetch QA items:", err);
       res.status(500).json({ error: "Failed to fetch QA items" });
     }
   });
@@ -115,6 +139,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(updated);
     } catch (err) {
+      console.error("Failed to update QA item:", err);
       res.status(500).json({ error: "Failed to update QA item" });
     }
   });
@@ -126,6 +151,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.deleteQAItem(parseInt(id));
       res.status(204).end();
     } catch (err) {
+      console.error("Failed to delete QA item:", err);
       res.status(500).json({ error: "Failed to delete QA item" });
     }
   });
