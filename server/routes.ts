@@ -181,6 +181,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create or update chatbot configuration
+  app.post("/api/chatbot-config", async (req, res) => {
+    try {
+      const config = await storage.createChatbotConfig({
+        companyName: req.body.companyName,
+        welcomeMessage: req.body.welcomeMessage,
+        primaryColor: req.body.primaryColor,
+        fontFamily: req.body.fontFamily,
+        position: req.body.position,
+        avatarUrl: req.body.avatarUrl,
+        bubbleStyle: req.body.bubbleStyle,
+        backgroundColor: req.body.backgroundColor,
+        buttonStyle: req.body.buttonStyle,
+      });
+
+      // Get associated QA items
+      const qaItems = await storage.getQAItems(config.id);
+
+      res.json({
+        config,
+        qaItems,
+      });
+    } catch (err) {
+      console.error("Failed to create chatbot config:", err);
+      res.status(500).json({ error: "Failed to create chatbot config" });
+    }
+  });
+
+  // Get chatbot configuration
+  app.get("/api/chatbot-config/:id", async (req, res) => {
+    try {
+      const config = await storage.getChatbotConfig(parseInt(req.params.id));
+
+      if (!config) {
+        res.status(404).json({ error: "Configuration not found" });
+        return;
+      }
+
+      const qaItems = await storage.getQAItems(config.id);
+
+      res.json({
+        config,
+        qaItems,
+      });
+    } catch (err) {
+      console.error("Failed to fetch chatbot config:", err);
+      res.status(500).json({ error: "Failed to fetch chatbot config" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
