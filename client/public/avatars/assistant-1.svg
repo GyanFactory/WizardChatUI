@@ -1,7 +1,24 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="128" height="128" rx="64" fill="#F0F9FF"/>
-  <circle cx="64" cy="64" r="48" fill="#0EA5E9"/>
-  <circle cx="48" cy="56" r="6" fill="white"/>
-  <circle cx="80" cy="56" r="6" fill="white"/>
-  <path d="M52 76C52 76 56 84 64 84C72 84 76 76 76 76" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#F0F9FF"/>
+
+  <!-- Robot Head Base -->
+  <path d="M24 48C24 36 34 24 64 24C94 24 104 36 104 48V88C104 100 94 104 64 104C34 104 24 100 24 88V48Z" fill="#0EA5E9"/>
+
+  <!-- Eyes Display -->
+  <rect x="36" y="44" width="24" height="12" rx="6" fill="white"/>
+  <rect x="68" y="44" width="24" height="12" rx="6" fill="white"/>
+
+  <!-- Display Lines -->
+  <path d="M44 76H84" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <path d="M54 88H74" stroke="white" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Antenna Arrays -->
+  <rect x="44" y="16" width="4" height="12" fill="#0EA5E9"/>
+  <rect x="62" y="12" width="4" height="16" fill="#0EA5E9"/>
+  <rect x="80" y="16" width="4" height="12" fill="#0EA5E9"/>
+
+  <!-- Side Vents -->
+  <path d="M20 56H28M20 64H28M20 72H28" stroke="#0EA5E9" stroke-width="2"/>
+  <path d="M100 56H108M100 64H108M100 72H108" stroke="#0EA5E9" stroke-width="2"/>
 </svg>

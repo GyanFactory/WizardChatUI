@@ -1,7 +1,23 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="128" height="128" rx="64" fill="#F3E8FF"/>
-  <circle cx="64" cy="64" r="48" fill="#7C3AED"/>
-  <circle cx="48" cy="56" r="8" fill="white"/>
-  <circle cx="80" cy="56" r="8" fill="white"/>
-  <path d="M48 80C48 80 54 88 64 88C74 88 80 80 80 80" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#F3E8FF"/>
+
+  <!-- Robot Head -->
+  <rect x="24" y="24" width="80" height="80" rx="8" fill="#7C3AED"/>
+
+  <!-- Antenna -->
+  <rect x="60" y="12" width="8" height="16" fill="#7C3AED"/>
+  <circle cx="64" cy="8" r="4" fill="#7C3AED"/>
+
+  <!-- Eyes -->
+  <rect x="40" y="48" width="16" height="8" rx="2" fill="white"/>
+  <rect x="72" y="48" width="16" height="8" rx="2" fill="white"/>
+
+  <!-- Circuit Lines -->
+  <path d="M32 88H96" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <path d="M48 96H80" stroke="white" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Side Panels -->
+  <rect x="16" y="40" width="8" height="40" rx="2" fill="#7C3AED"/>
+  <rect x="104" y="40" width="8" height="40" rx="2" fill="#7C3AED"/>
 </svg>

@@ -1,7 +1,19 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="128" height="128" rx="64" fill="#F1F5F9"/>
-  <circle cx="64" cy="64" r="48" fill="#64748B"/>
-  <circle cx="48" cy="56" r="6" fill="white"/>
-  <circle cx="80" cy="56" r="6" fill="white"/>
-  <rect x="48" y="76" width="32" height="4" rx="2" fill="white"/>
+  <!-- Background -->
+  <rect width="128" height="128" rx="16" fill="#F1F5F9"/>
+
+  <!-- Minimal Robot Head -->
+  <rect x="32" y="32" width="64" height="64" rx="8" fill="#64748B"/>
+
+  <!-- Minimal Eyes -->
+  <rect x="44" y="48" width="12" height="12" rx="2" fill="white"/>
+  <rect x="72" y="48" width="12" height="12" rx="2" fill="white"/>
+
+  <!-- Data Lines -->
+  <path d="M44 72L84 72" stroke="white" stroke-width="4" stroke-linecap="round"/>
+  <path d="M54 80L74 80" stroke="white" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Corner Accents -->
+  <rect x="28" y="44" width="4" height="40" rx="2" fill="#64748B"/>
+  <rect x="96" y="44" width="4" height="40" rx="2" fill="#64748B"/>
 </svg>
