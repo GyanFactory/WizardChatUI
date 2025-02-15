@@ -6,18 +6,32 @@ import { Upload, File, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWizardStore } from "@/store/wizardStore";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+
+interface FileWithPath extends File {
+  path?: string;
+}
 
 export default function DocumentUpload() {
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<FileWithPath | null>(null);
   const { toast } = useToast();
   const { setStep } = useWizardStore();
 
   const uploadMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      const response = await apiRequest('POST', '/api/documents/upload', formData);
-      const data = await response.json();
-      return data;
+    mutationFn: async (file: FileWithPath) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Upload failed');
+      }
+
+      return response.json();
     },
     onSuccess: (data) => {
       toast({
@@ -26,7 +40,7 @@ export default function DocumentUpload() {
       });
       setStep(2); // Move to Q&A Management step
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({
         title: "Upload failed",
         description: error.message,
@@ -60,10 +74,7 @@ export default function DocumentUpload() {
 
   const handleUpload = async () => {
     if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-    uploadMutation.mutate(formData);
+    uploadMutation.mutate(file);
   };
 
   return (
@@ -77,7 +88,35 @@ export default function DocumentUpload() {
 
       <Card className="p-6">
         <div className="space-y-6">
-          <div className="border-2 border-dashed border-gray-200 rounded-lg p-8">
+          <div 
+            className="border-2 border-dashed border-gray-200 rounded-lg p-8"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const droppedFile = e.dataTransfer.files[0];
+              if (droppedFile.type === "application/pdf") {
+                if (droppedFile.size <= 5 * 1024 * 1024) {
+                  setFile(droppedFile);
+                } else {
+                  toast({
+                    title: "File too large",
+                    description: "Please upload a file smaller than 5MB",
+                    variant: "destructive",
+                  });
+                }
+              } else {
+                toast({
+                  title: "Invalid file type",
+                  description: "Please upload a PDF file",
+                  variant: "destructive",
+                });
+              }
+            }}
+          >
             <div className="flex flex-col items-center justify-center">
               <Upload className="h-12 w-12 text-gray-400 mb-4" />
               <Label
