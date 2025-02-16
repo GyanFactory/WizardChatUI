@@ -22,6 +22,7 @@ import { z } from "zod";
 import { Redirect } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Mail, Lock, User, Bot, MessageSquare, FileText, Zap } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -32,8 +33,14 @@ const registerSchema = loginSchema.extend({
   name: z.string().min(2, "Name must be at least 2 characters"),
 });
 
+type RegisterResponse = {
+  message: string;
+  status: "success" | "error" | "email_failed";
+};
+
 export default function AuthPage() {
   const { loginMutation, registerMutation, user } = useAuth();
+  const { toast } = useToast();
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -150,9 +157,31 @@ export default function AuthPage() {
                   <TabsContent value="register" className="space-y-4">
                     <Form {...registerForm}>
                       <form
-                        onSubmit={registerForm.handleSubmit((data) =>
-                          registerMutation.mutate(data)
-                        )}
+                        onSubmit={registerForm.handleSubmit((data) => {
+                          registerMutation.mutate(data, {
+                            onError: (error: Error) => {
+                              toast({
+                                title: "Registration failed",
+                                description: error.message,
+                                variant: "destructive",
+                              });
+                            },
+                            onSuccess: (response: RegisterResponse) => {
+                              if (response.status === "email_failed") {
+                                toast({
+                                  title: "Account created",
+                                  description: "However, the verification email could not be sent. You can request a new one later.",
+                                  variant: "warning",
+                                });
+                              } else {
+                                toast({
+                                  title: "Registration successful",
+                                  description: "Please check your email to verify your account.",
+                                });
+                              }
+                            },
+                          });
+                        })}
                         className="space-y-4"
                       >
                         <FormField
@@ -164,10 +193,10 @@ export default function AuthPage() {
                               <FormControl>
                                 <div className="relative">
                                   <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                  <Input 
-                                    placeholder="Enter your name" 
+                                  <Input
+                                    placeholder="Enter your name"
                                     className="pl-10"
-                                    {...field} 
+                                    {...field}
                                   />
                                 </div>
                               </FormControl>

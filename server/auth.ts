@@ -86,30 +86,53 @@ export function setupAuth(app: Express) {
   };
 
   app.post("/api/register", asyncHandler(async (req, res) => {
-    const existingUser = await storage.getUserByEmail(req.body.email);
-    if (existingUser) {
-      return res.status(400).json({ message: "Email already registered" });
-    }
+    try {
+      const { email, password, name } = req.body;
 
-    const verificationToken = await generateVerificationToken();
-    const user = await storage.createUser({
-      ...req.body,
-      password: await hashPassword(req.body.password),
-      verificationToken,
-    });
+      if (!email || !password || !name) {
+        return res.status(400).json({ 
+          message: "Missing required fields",
+          status: "error"
+        });
+      }
 
-    const emailSent = await sendVerificationEmail(user, verificationToken);
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ 
+          message: "Email already registered",
+          status: "error"
+        });
+      }
 
-    if (!emailSent) {
-      // If email fails to send, we should still create the account but inform the user
-      res.status(201).json({ 
-        message: "Account created but verification email could not be sent. Please try requesting a new verification email later.",
-        status: "email_failed"
+      const verificationToken = await generateVerificationToken();
+      const hashedPassword = await hashPassword(password);
+
+      const user = await storage.createUser({
+        email,
+        name,
+        password: hashedPassword,
+        verificationToken,
+        isVerified: false
       });
-    } else {
+
+      const emailSent = await sendVerificationEmail(user, verificationToken);
+
+      if (!emailSent) {
+        return res.status(201).json({ 
+          message: "Account created but verification email could not be sent. Please try requesting a new verification email later.",
+          status: "email_failed"
+        });
+      }
+
       res.status(201).json({ 
         message: "Registration successful. Please check your email to verify your account.",
         status: "success"
+      });
+    } catch (error) {
+      console.error('Registration error:', error);
+      res.status(500).json({ 
+        message: "Failed to create account. Please try again.",
+        status: "error"
       });
     }
   }));
