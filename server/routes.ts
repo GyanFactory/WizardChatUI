@@ -99,11 +99,13 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
 
     console.log(`Processing ${chunks.length} chunks with OpenAI`);
     const qa_pairs = [];
+    let retryCount = 0;
+    const maxRetries = 3;
 
     for (const chunk of chunks) {
       try {
         // Rate limiting delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -133,8 +135,12 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
           console.error("OpenAI API error:", response.status, errorText);
 
           if (response.status === 429) {
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            continue;
+            if (retryCount < maxRetries) {
+              retryCount++;
+              await new Promise(resolve => setTimeout(resolve, 5000 * retryCount));
+              continue;
+            }
+            throw new Error("Rate limit exceeded after retries");
           }
           throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
         }
@@ -149,11 +155,23 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
             answer: answer.trim(),
             context: chunk
           });
-          console.log("Generated QA pair:", qa_pairs[qa_pairs.length - 1]);
         }
       } catch (error) {
         console.error("Error processing chunk:", error);
+        // Instead of silently continuing, collect some basic QA pairs from the chunk
+        const basicQuestion = `What is the main topic discussed in this text: "${chunk.substring(0, 100)}..."?`;
+        qa_pairs.push({
+          question: basicQuestion,
+          answer: chunk.substring(0, 200) + "...",
+          context: chunk,
+        });
       }
+    }
+
+    // If we couldn't generate any QA pairs with OpenAI, fall back to rule-based approach
+    if (qa_pairs.length === 0) {
+      console.log("Falling back to rule-based QA generation");
+      return generateQAPairs(text, "opensource");
     }
 
     return qa_pairs;

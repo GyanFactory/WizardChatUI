@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Edit2, Save, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -17,7 +17,7 @@ interface QAItem {
 }
 
 export default function QAManagement() {
-  const { currentDocumentId, setQAItems } = useWizardStore();
+  const { currentDocumentId } = useWizardStore();
   const [newQuestion, setNewQuestion] = useState("");
   const [newAnswer, setNewAnswer] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -38,11 +38,6 @@ export default function QAManagement() {
     enabled: !!currentDocumentId,
   });
 
-  // Update wizard store when QA items change
-  useEffect(() => {
-    setQAItems(qaItems);
-  }, [qaItems, setQAItems]);
-
   // Add new QA item
   const addMutation = useMutation({
     mutationFn: async (item: { question: string; answer: string }) => {
@@ -51,6 +46,7 @@ export default function QAManagement() {
         body: JSON.stringify({
           ...item,
           documentId: currentDocumentId,
+          configId: 1, // TODO: Get from session
         }),
       });
       return res.json();
