@@ -46,7 +46,6 @@ export function setupAuth(app: Express) {
     }
   };
 
-  app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -81,33 +80,33 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res) => {
-    try {
-      const existingUser = await storage.getUserByEmail(req.body.email);
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already registered" });
-      }
+  // Wrap async route handlers to properly catch errors
+  const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
+    return Promise.resolve(fn(req, res, next)).catch(next);
+  };
 
-      const verificationToken = await generateVerificationToken();
-      const user = await storage.createUser({
-        ...req.body,
-        password: await hashPassword(req.body.password),
-        verificationToken,
-      });
-
-      await sendVerificationEmail(user, verificationToken);
-
-      res.status(201).json({ 
-        message: "Registration successful. Please check your email to verify your account." 
-      });
-    } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({ message: "Registration failed" });
+  app.post("/api/register", asyncHandler(async (req, res) => {
+    const existingUser = await storage.getUserByEmail(req.body.email);
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already registered" });
     }
-  });
+
+    const verificationToken = await generateVerificationToken();
+    const user = await storage.createUser({
+      ...req.body,
+      password: await hashPassword(req.body.password),
+      verificationToken,
+    });
+
+    await sendVerificationEmail(user, verificationToken);
+
+    res.status(201).json({ 
+      message: "Registration successful. Please check your email to verify your account." 
+    });
+  }));
 
   app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err, user, info) => {
+    passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
         return res.status(500).json({ message: "Authentication failed" });
       }
@@ -133,30 +132,34 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/verify-email", async (req, res) => {
-    try {
-      const { token } = req.query;
-      if (!token || typeof token !== 'string') {
-        return res.status(400).json({ message: "Invalid verification token" });
-      }
-
-      const user = await storage.getUserByVerificationToken(token);
-      if (!user) {
-        return res.status(400).json({ message: "Invalid or expired verification token" });
-      }
-
-      await storage.verifyUser(user.id);
-      res.json({ message: "Email verified successfully. You can now log in." });
-    } catch (error) {
-      console.error('Verification error:', error);
-      res.status(500).json({ message: "Email verification failed" });
+  app.get("/api/verify-email", asyncHandler(async (req, res) => {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ message: "Invalid verification token" });
     }
-  });
+
+    const user = await storage.getUserByVerificationToken(token);
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired verification token" });
+    }
+
+    await storage.verifyUser(user.id);
+    res.json({ message: "Email verified successfully. You can now log in." });
+  }));
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     res.json(req.user);
+  });
+
+  // Error handling middleware
+  app.use((err: any, req: any, res: any, next: any) => {
+    console.error('API Error:', err);
+    res.status(500).json({ 
+      message: "An unexpected error occurred",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   });
 }

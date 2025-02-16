@@ -30,7 +30,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       try {
         const response = await fetch("/api/user", {
-          credentials: "include"
+          credentials: "include",
+          headers: {
+            'Accept': 'application/json',
+          }
         });
         if (!response.ok) {
           if (response.status === 401) return null;
@@ -49,6 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async (credentials: { email: string; password: string }) => {
       const response = await apiRequest("/api/login", {
         method: "POST",
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(credentials),
       });
       const data = await response.json();
@@ -77,6 +84,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async (userData: { email: string; password: string }) => {
       const response = await apiRequest("/api/register", {
         method: "POST",
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(userData),
       });
       const data = await response.json();
@@ -104,6 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     mutationFn: async () => {
       const response = await apiRequest("/api/logout", {
         method: "POST",
+        headers: {
+          'Accept': 'application/json',
+        },
       });
       const data = await response.json();
       if (!response.ok) {
