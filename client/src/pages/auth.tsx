@@ -66,6 +66,13 @@ export default function AuthPage() {
     return <Redirect to="/" />;
   }
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Reset forms when switching tabs
+    loginForm.reset();
+    registerForm.reset();
+  };
+
   return (
     <div className="min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-background to-muted/20">
       <div className="container flex items-center justify-center py-10 md:py-16">
@@ -75,14 +82,17 @@ export default function AuthPage() {
               <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent" />
               <CardHeader className="space-y-1">
                 <CardTitle className="text-2xl font-bold tracking-tight">
-                  Welcome back
+                  {activeTab === "login" ? "Welcome back" : "Create an account"}
                 </CardTitle>
                 <CardDescription className="text-muted-foreground">
-                  Enter your credentials to access your account
+                  {activeTab === "login"
+                    ? "Enter your credentials to access your account"
+                    : "Sign up for a new account to get started"
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="login">
                       Login
@@ -98,9 +108,11 @@ export default function AuthPage() {
                         onSubmit={loginForm.handleSubmit((data) => {
                           loginMutation.mutate(data, {
                             onError: (error: Error) => {
+                              // Clear password field on error
+                              loginForm.setValue("password", "");
                               toast({
                                 title: "Login failed",
-                                description: error.message,
+                                description: error.message || "Invalid email or password",
                                 variant: "destructive",
                               });
                             }
@@ -170,6 +182,8 @@ export default function AuthPage() {
                         onSubmit={registerForm.handleSubmit((data) => {
                           registerMutation.mutate(data, {
                             onError: (error: Error) => {
+                              // Clear password field on error
+                              registerForm.setValue("password", "");
                               toast({
                                 title: "Registration failed",
                                 description: error.message,
@@ -190,6 +204,7 @@ export default function AuthPage() {
                                 });
                               }
                               setActiveTab("login");
+                              registerForm.reset();
                             },
                           });
                         })}
