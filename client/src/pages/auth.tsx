@@ -23,6 +23,7 @@ import { Redirect } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Mail, Lock, User, Bot, MessageSquare, FileText, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -41,6 +42,7 @@ type RegisterResponse = {
 export default function AuthPage() {
   const { loginMutation, registerMutation, user } = useAuth();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("login");
 
   const loginForm = useForm({
     resolver: zodResolver(loginSchema),
@@ -80,18 +82,12 @@ export default function AuthPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="login" className="space-y-6">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger 
-                      value="login" 
-                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                    >
+                    <TabsTrigger value="login">
                       Login
                     </TabsTrigger>
-                    <TabsTrigger 
-                      value="register"
-                      className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                    >
+                    <TabsTrigger value="register">
                       Register
                     </TabsTrigger>
                   </TabsList>
@@ -99,9 +95,17 @@ export default function AuthPage() {
                   <TabsContent value="login" className="space-y-4">
                     <Form {...loginForm}>
                       <form
-                        onSubmit={loginForm.handleSubmit((data) =>
-                          loginMutation.mutate(data)
-                        )}
+                        onSubmit={loginForm.handleSubmit((data) => {
+                          loginMutation.mutate(data, {
+                            onError: (error: Error) => {
+                              toast({
+                                title: "Login failed",
+                                description: error.message,
+                                variant: "destructive",
+                              });
+                            }
+                          });
+                        })}
                         className="space-y-4"
                       >
                         <FormField
@@ -185,6 +189,7 @@ export default function AuthPage() {
                                   description: "Please check your email to verify your account.",
                                 });
                               }
+                              setActiveTab("login");
                             },
                           });
                         })}
