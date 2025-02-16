@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
+import type { ChatbotConfig } from "@shared/schema";
 
 export default function Embed() {
   const config = useWizardStore();
@@ -15,8 +16,11 @@ export default function Embed() {
   // Save configuration when component mounts
   const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
-      const { config: savedConfig } = await apiRequest("/api/chatbot-config", {
+      const response = await fetch("/api/chatbot-config", {
         method: "POST",
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({
           companyName: config.companyName,
           welcomeMessage: config.welcomeMessage,
@@ -29,13 +33,19 @@ export default function Embed() {
           buttonStyle: config.buttonStyle,
         }),
       });
-      setConfigId(savedConfig.id);
-      return savedConfig;
+
+      if (!response.ok) {
+        throw new Error('Failed to save configuration');
+      }
+
+      const data = await response.json();
+      setConfigId(data.config.id);
+      return data.config as ChatbotConfig;
     },
-    onError: () => {
+    onError: (error: Error) => {
       toast({
         title: "Error",
-        description: "Failed to save chatbot configuration",
+        description: error.message || "Failed to save chatbot configuration",
         variant: "destructive",
       });
     },
