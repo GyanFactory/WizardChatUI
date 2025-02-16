@@ -62,12 +62,17 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
 
 // Generate QA pairs using either opensource or OpenAI approach
 async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string, context?: string): Promise<any[]> {
+  if (!context?.trim()) {
+    throw new Error("Context is required for both models");
+  }
+
   if (model === "opensource") {
-    // Use simple rule-based QA generation
+    // Use simple rule-based QA generation with context
     return new Promise((resolve, reject) => {
       const qaProcess = spawn("python", [
         path.join(process.cwd(), "server/services/qa_generator.py"),
-        text
+        text,
+        context // Pass context to Python script
       ]);
 
       let output = '';
@@ -111,7 +116,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
     let retryCount = 0;
     const maxRetries = 3;
 
-    const systemPrompt = context 
+    const systemPrompt = context
       ? `You are an expert at creating comprehensive Q&A pairs from documents. Focus on extracting information about: ${context}. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`
       : `You are an expert at creating comprehensive Q&A pairs from documents. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Focus on key information, technical details, and important facts. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`;
 
@@ -208,8 +213,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         let apiKey = req.body.apiKey;
         const context = req.body.context;
 
-        if (model === "openai" && !context?.trim()) {
-          throw new Error("Context is required for OpenAI model");
+        if (!context?.trim()) {
+          throw new Error("Context is required");
         }
 
         if (apiKey) {

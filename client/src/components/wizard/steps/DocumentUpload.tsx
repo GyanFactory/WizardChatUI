@@ -33,7 +33,7 @@ export default function DocumentUpload() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
-      if (!context.trim() && selectedModel === "openai") {
+      if (!context.trim()) {
         setContextError("Please provide context about what information you want to extract from the document");
         throw new Error("Context is required");
       }
@@ -78,6 +78,40 @@ export default function DocumentUpload() {
     },
   });
 
+  const handleModelSelect = (model: string) => {
+    setSelectedModel(model);
+    if (model !== "opensource") {
+      setShowApiKeyDialog(true);
+    } else {
+      setApiKey("");
+      setShowApiKeyDialog(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    if (selectedModel !== "opensource") {
+      if (!apiKey) {
+        toast({
+          title: "API Key Required",
+          description: "Please enter the API key for the selected model",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    if (!context.trim()) {
+      setContextError("Please provide context about what information you want to extract from the document");
+      toast({
+        title: "Context Required",
+        description: "Please provide context for better Q&A generation",
+        variant: "destructive",
+      });
+      return;
+    }
+    uploadMutation.mutate(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
@@ -101,40 +135,6 @@ export default function DocumentUpload() {
     }
   };
 
-  const handleModelSelect = (model: string) => {
-    setSelectedModel(model);
-    if (model !== "opensource") {
-      setShowApiKeyDialog(true);
-    } else {
-      setApiKey("");
-      setShowApiKeyDialog(false);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-    if (selectedModel !== "opensource") {
-      if (!apiKey) {
-        toast({
-          title: "API Key Required",
-          description: "Please enter the API key for the selected model",
-          variant: "destructive",
-        });
-        return;
-      }
-      if (!context.trim()) {
-        setContextError("Please provide context about what information you want to extract from the document");
-        toast({
-          title: "Context Required",
-          description: "Please provide context for better Q&A generation",
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-    uploadMutation.mutate(file);
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -148,7 +148,7 @@ export default function DocumentUpload() {
         <div className="space-y-6">
           <div className="space-y-4">
             <Label>
-              Context {selectedModel === "openai" && <span className="text-red-500">*</span>}
+              Context <span className="text-red-500">*</span>
             </Label>
             <Textarea
               placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a resume, I want to extract information about work experience, skills, and projects.'"
