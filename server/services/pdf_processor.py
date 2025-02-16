@@ -33,31 +33,59 @@ def split_text_into_chunks(text: str, chunk_size: int = 1000) -> List[str]:
     return chunks
 
 def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
-    """Generate Q&A pairs from text chunks."""
+    """Generate Q&A pairs from text chunks with improved handling of documentation."""
     qa_pairs = []
+    
+    # Common document section headers
+    section_patterns = [
+        r'^(?:CHAPTER|Section)\s+\d+[.:]\s*(.+)',
+        r'^\d+[.:]\d*\s+(.+)',
+        r'^(?:Overview|Introduction|Background|Summary):\s*(.+)',
+        r'^(?:Note|Warning|Caution|Important):\s*(.+)',
+        r'^(?:Procedure|Steps|Instructions):\s*(.+)'
+    ]
 
     for chunk in chunks:
-        # Skip short or empty chunks
-        if len(chunk) < 50:
+        if len(chunk) < 30:  # Skip very short chunks
             continue
-
-        # Split into sentences
+            
+        # Clean the text
+        chunk = re.sub(r'\s+', ' ', chunk).strip()
+        
+        # Handle numbered lists and procedures
+        if re.match(r'^\d+\.\s', chunk):
+            question = "What are the steps for " + re.sub(r'^\d+\.\s', '', chunk.split('.')[1]) + "?"
+            qa_pairs.append({"question": question, "answer": chunk})
+            continue
+            
+        # Handle sections and headers
+        for pattern in section_patterns:
+            if match := re.match(pattern, chunk, re.IGNORECASE):
+                section_title = match.group(1)
+                question = f"What is {section_title}?"
+                qa_pairs.append({"question": question, "answer": chunk})
+                break
+                
+        # Handle regular sentences
         sentences = re.split(r'(?<=[.!?])\s+', chunk)
         for sentence in sentences:
             sentence = sentence.strip()
-            if len(sentence) > 50:  # Only process substantial sentences
-                # Create questions using different patterns
-                if sentence.startswith("The ") or sentence.startswith("A ") or sentence.startswith("An "):
-                    question = "What is " + sentence[4:].lower() + "?"
-                elif sentence.startswith("In ") or sentence.startswith("On ") or sentence.startswith("At "):
-                    question = "What happened " + sentence[:sentence.find(" ")+1].lower() + sentence[sentence.find(" ")+1:] + "?"
-                else:
-                    question = "Can you explain " + sentence.lower() + "?"
+            if len(sentence) < 40:  # Skip short sentences
+                continue
+                
+            # Generate contextual questions
+            if re.search(r'(?:how to|steps to|method for|procedure for)', sentence, re.IGNORECASE):
+                question = "How do you " + re.sub(r'^(?:This is |Here is |These are |The |A |An )', '', sentence.lower()) + "?"
+            elif re.search(r'(?:means|refers to|is defined as|consists of)', sentence, re.IGNORECASE):
+                question = "What " + sentence.split()[0].lower() + "?"
+            elif re.search(r'(?:must|should|need to|required to)', sentence, re.IGNORECASE):
+                question = "What is required for " + re.sub(r'^(?:You |The |A |An )', '', sentence.lower()) + "?"
+            else:
+                question = "Could you explain " + re.sub(r'^(?:This |The |A |An )', '', sentence.lower()) + "?"
+                
+            qa_pairs.append({"question": question, "answer": sentence})
 
-                qa_pairs.append({
-                    "question": question,
-                    "answer": sentence
-                })
+    return qa_pairs
 
     return qa_pairs
 
