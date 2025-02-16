@@ -25,12 +25,16 @@ export default function Steps() {
   const validateStep = () => {
     switch (currentStep) {
       case 0: // CompanyInfo
+        const companyInfoComponent = document.querySelector('#companyName');
         if (!companyName.trim()) {
           toast({
             title: "Required Field",
             description: "Please enter your company name before proceeding",
             variant: "destructive",
           });
+          if (companyInfoComponent) {
+            companyInfoComponent.classList.add('border-red-500');
+          }
           return false;
         }
         break;

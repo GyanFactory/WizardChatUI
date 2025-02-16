@@ -31,6 +31,59 @@ export default function DocumentUpload() {
     return CryptoJS.AES.encrypt(key, salt).toString();
   };
 
+  // Function to check OpenAI API key
+  const checkAPIKey = async (key: string) => {
+    try {
+      const response = await fetch('https://api.openai.com/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${key}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Invalid API key');
+      }
+
+      const data = await response.json();
+      // Get quota information
+      const quotaResponse = await fetch('https://api.openai.com/v1/usage', {
+        headers: {
+          'Authorization': `Bearer ${key}`
+        }
+      });
+
+      if (quotaResponse.ok) {
+        const quotaData = await quotaResponse.json();
+        const remainingTokens = quotaData.total_available - quotaData.total_used;
+
+        toast({
+          title: "API Key Valid",
+          description: `Remaining tokens: ${remainingTokens.toLocaleString()}`,
+        });
+      } else {
+        toast({
+          title: "API Key Valid",
+          description: "Unable to fetch quota information",
+        });
+      }
+
+      return true;
+    } catch (error) {
+      toast({
+        title: "Invalid API Key",
+        description: error.message,
+        variant: "destructive"
+      });
+      return false;
+    }
+  };
+
+  const handleConfirmApiKey = async () => {
+    if (await checkAPIKey(apiKey)) {
+      setShowApiKeyDialog(false);
+    }
+  };
+
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
       if (!context.trim()) {
@@ -185,7 +238,10 @@ export default function DocumentUpload() {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
-              <Button onClick={() => setShowApiKeyDialog(false)}>
+              <Button 
+                onClick={handleConfirmApiKey}
+                disabled={!apiKey.trim()}
+              >
                 Confirm API Key
               </Button>
             </div>
