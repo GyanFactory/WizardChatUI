@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
 import AuthPage from "@/pages/auth";
 import ProfilePage from "@/pages/profile";
+import VerifyEmailPage from "@/pages/verify-email";
 
 function Router() {
   return (
@@ -15,6 +16,7 @@ function Router() {
       <Route path="/auth" component={AuthPage} />
       <Route path="/" component={WizardPage} />
       <Route path="/profile" component={ProfilePage} />
+      <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
     </Switch>
   );
