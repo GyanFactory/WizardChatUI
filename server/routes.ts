@@ -30,6 +30,53 @@ function decryptApiKey(encryptedKey: string): string {
   return bytes.toString(CryptoJS.enc.Utf8);
 }
 
+// Add after decryptApiKey function
+async function getOpenAIQuota(apiKey: string): Promise<{ valid: boolean; quota?: { total: number; used: number } }> {
+  try {
+    // First verify if the API key is valid
+    const modelsResponse = await fetch('https://api.openai.com/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+
+    if (!modelsResponse.ok) {
+      return { valid: false };
+    }
+
+    // Get billing information for the current month
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const usageResponse = await fetch(
+      `https://api.openai.com/v1/usage?start_date=${firstDay.toISOString().split('T')[0]}&end_date=${lastDay.toISOString().split('T')[0]}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`
+        }
+      }
+    );
+
+    if (!usageResponse.ok) {
+      // Key is valid but couldn't get quota
+      return { valid: true };
+    }
+
+    const usageData = await usageResponse.json();
+    return {
+      valid: true,
+      quota: {
+        total: usageData.total_available || 0,
+        used: usageData.total_used || 0
+      }
+    };
+  } catch (error) {
+    console.error('Error checking OpenAI quota:', error);
+    return { valid: false };
+  }
+}
+
 // Extract text from PDF using the Python service
 async function extractTextFromPDF(filePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -329,6 +376,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch QA items" });
     }
   });
+
+  // Add new route for validating OpenAI API key
+  app.post("/api/validate-openai-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      // Decrypt the API key
+      const decryptedKey = decryptApiKey(apiKey);
+      const quotaInfo = await getOpenAIQuota(decryptedKey);
+
+      if (!quotaInfo.valid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({
+        valid: true,
+        quota: quotaInfo.quota
+      });
+    } catch (err) {
+      console.error("Failed to validate OpenAI key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
 
   const httpServer = createServer(app);
   return httpServer;

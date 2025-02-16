@@ -34,36 +34,34 @@ export default function DocumentUpload() {
   // Function to check OpenAI API key
   const checkAPIKey = async (key: string) => {
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${key}`
-        }
-      });
+      // Encrypt API key before sending
+      const encryptedKey = encryptApiKey(key);
 
-      if (!response.ok) {
-        throw new Error('Invalid API key');
-      }
+      const response = await fetch('/api/validate-openai-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ apiKey: encryptedKey })
+      });
 
       const data = await response.json();
-      // Get quota information
-      const quotaResponse = await fetch('https://api.openai.com/v1/usage', {
-        headers: {
-          'Authorization': `Bearer ${key}`
-        }
-      });
 
-      if (quotaResponse.ok) {
-        const quotaData = await quotaResponse.json();
-        const remainingTokens = quotaData.total_available - quotaData.total_used;
+      if (!response.ok) {
+        throw new Error(data.error || 'Invalid API key');
+      }
 
+      if (data.quota) {
+        const { total, used } = data.quota;
+        const remaining = total - used;
         toast({
           title: "API Key Valid",
-          description: `Remaining tokens: ${remainingTokens.toLocaleString()}`,
+          description: `Monthly Usage: ${used.toLocaleString()} / ${total.toLocaleString()} tokens`,
         });
       } else {
         toast({
           title: "API Key Valid",
-          description: "Unable to fetch quota information",
+          description: "Unable to fetch quota information, but the key is valid",
         });
       }
 
@@ -78,7 +76,7 @@ export default function DocumentUpload() {
     }
   };
 
-  const handleConfirmApiKey = async () => {
+  const handleValidateApiKey = async () => {
     if (await checkAPIKey(apiKey)) {
       setShowApiKeyDialog(false);
     }
@@ -239,10 +237,10 @@ export default function DocumentUpload() {
                 onChange={(e) => setApiKey(e.target.value)}
               />
               <Button 
-                onClick={handleConfirmApiKey}
+                onClick={handleValidateApiKey}
                 disabled={!apiKey.trim()}
               >
-                Confirm API Key
+                Validate API Key
               </Button>
             </div>
           )}
