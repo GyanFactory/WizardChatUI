@@ -1,9 +1,19 @@
-import { pgTable, text, serial, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  password: text("password").notNull(),
+  verificationToken: text("verification_token"),
+  isVerified: boolean("is_verified").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const chatbotConfig = pgTable("chatbot_config", {
   id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
   companyName: text("company_name").notNull(),
   welcomeMessage: text("welcome_message").notNull(),
   primaryColor: text("primary_color").notNull(),
@@ -33,6 +43,17 @@ export const qaItems = pgTable("qa_items", {
   isGenerated: boolean("is_generated").default(true),
 });
 
+// Schemas for inserting data
+export const insertUserSchema = createInsertSchema(users).omit({ 
+  id: true,
+  isVerified: true,
+  verificationToken: true,
+  createdAt: true,
+}).extend({
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address"),
+});
+
 export const insertChatbotConfigSchema = createInsertSchema(chatbotConfig).omit({ 
   id: true 
 });
@@ -46,9 +67,12 @@ export const insertQAItemSchema = createInsertSchema(qaItems).omit({
   id: true 
 });
 
+// Types
+export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertChatbotConfig = z.infer<typeof insertChatbotConfigSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertQAItem = z.infer<typeof insertQAItemSchema>;
+export type User = typeof users.$inferSelect;
 export type ChatbotConfig = typeof chatbotConfig.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type QAItem = typeof qaItems.$inferSelect;

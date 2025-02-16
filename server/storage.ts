@@ -9,19 +9,23 @@ import {
 import { users, type User, type InsertUser } from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
-import { chatbotConfig } from "../shared/schema"; // Added import for chatbotConfig
+import createMemoryStore from "memorystore";
+import session from "express-session";
 
+const MemoryStore = createMemoryStore(session);
 
 export interface IStorage {
   // User operations
   getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByVerificationToken(token: string): Promise<User | undefined>;
+  createUser(user: InsertUser & { verificationToken: string }): Promise<User>;
+  verifyUser(userId: number): Promise<User>;
 
   // ChatbotConfig operations
   getChatbotConfig(id: number): Promise<ChatbotConfig | undefined>;
   createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig>;
-  updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null>; //Added update function
+  updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null>;
 
   // Document operations
   getDocument(id: number): Promise<Document | undefined>;
@@ -35,6 +39,9 @@ export interface IStorage {
   createQAItems(items: InsertQAItem[]): Promise<QAItem[]>;
   updateQAItem(id: number, item: Partial<InsertQAItem>): Promise<QAItem>;
   deleteQAItem(id: number): Promise<void>;
+
+  // Session store
+  sessionStore: session.Store;
 }
 
 export class MemStorage implements IStorage {
@@ -46,6 +53,7 @@ export class MemStorage implements IStorage {
   private currentConfigId: number;
   private currentDocId: number;
   private currentQAId: number;
+  readonly sessionStore: session.Store;
 
   constructor() {
     this.users = new Map();
@@ -56,23 +64,52 @@ export class MemStorage implements IStorage {
     this.currentConfigId = 1;
     this.currentDocId = 1;
     this.currentQAId = 1;
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000, // prune expired entries every 24h
+    });
   }
 
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
+  async getUserByEmail(email: string): Promise<User | undefined> {
     return Array.from(this.users.values()).find(
-      (user) => user.username === username,
+      (user) => user.email === email,
     );
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
+  async getUserByVerificationToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.verificationToken === token,
+    );
+  }
+
+  async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
     const id = this.currentId++;
-    const user: User = { ...insertUser, id };
+    const user: User = {
+      id,
+      email: insertUser.email,
+      password: insertUser.password,
+      verificationToken: insertUser.verificationToken,
+      isVerified: false,
+      createdAt: new Date(),
+    };
     this.users.set(id, user);
     return user;
+  }
+
+  async verifyUser(userId: number): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+
+    const verifiedUser = {
+      ...user,
+      isVerified: true,
+      verificationToken: null,
+    };
+    this.users.set(userId, verifiedUser);
+    return verifiedUser;
   }
 
   async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
@@ -86,7 +123,7 @@ export class MemStorage implements IStorage {
     return newConfig;
   }
 
-    async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
+  async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
     const existingConfig = this.configs.get(id);
     if (!existingConfig) return null;
     const updatedConfig = { ...existingConfig, ...config };

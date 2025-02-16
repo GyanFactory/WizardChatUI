@@ -7,10 +7,16 @@ import Appearance from "./steps/Appearance";
 import Embed from "./steps/Embed";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/use-auth";
+import AuthForm from "../auth/AuthForm";
 
 export default function Steps() {
   const { currentStep, setStep, companyName } = useWizardStore();
   const { toast } = useToast();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const { user } = useAuth();
 
   const stepComponents = [
     CompanyInfo,
@@ -35,6 +41,12 @@ export default function Steps() {
           if (companyInfoComponent) {
             companyInfoComponent.classList.add('border-red-500');
           }
+          return false;
+        }
+        break;
+      case 3: // Before showing embed code
+        if (!user) {
+          setShowAuthDialog(true);
           return false;
         }
         break;
@@ -80,6 +92,18 @@ export default function Steps() {
           <ArrowRight className="w-4 h-4 ml-2" />
         </Button>
       </div>
+
+      <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Login or Create Account</DialogTitle>
+          </DialogHeader>
+          <AuthForm onSuccess={() => {
+            setShowAuthDialog(false);
+            handleNext();
+          }} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
