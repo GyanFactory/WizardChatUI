@@ -48,10 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify(credentials),
       });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      return response.json();
+      return await response.json();
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -75,10 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify(userData),
       });
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-      return response.json();
+      return await response.json();
     },
     onSuccess: () => {
       toast({
