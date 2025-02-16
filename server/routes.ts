@@ -95,14 +95,18 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
           throw new Error(`OpenAI API error: ${response.statusText}`);
         }
 
-      const result = await response.json();
-      const content = result.choices[0].message.content;
-      const parts = content.split('\nA: ');
-      qa_pairs.push({
-        question: parts[0].replace('Q: ', '').trim(),
-        answer: parts[1] ? parts[1].trim() : chunk,
-        context: ""
-      });
+        const result = await response.json();
+        const content = result.choices[0].message.content;
+        const parts = content.split('\nA: ');
+        qa_pairs.push({
+          question: parts[0].replace('Q: ', '').trim(),
+          answer: parts[1] ? parts[1].trim() : chunk,
+          context: ""
+        });
+      } catch (error) {
+        console.error("Error processing chunk:", error);
+        continue;
+      }
     }
     
     return qa_pairs;
