@@ -13,9 +13,11 @@ export default function Embed() {
   const [copied, setCopied] = useState(false);
 
   // Save configuration when component mounts
-  const { mutate: saveConfig, isPending } = useMutation({
+  const { appId } = useWizardStore();
+const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
-      const { config: savedConfig } = await apiRequest("/api/chatbot-config", {
+      if (!appId) throw new Error("No app ID found");
+      const { config: savedConfig } = await apiRequest(`/api/chatbot-config/${appId}`, {
         method: "POST",
         body: JSON.stringify({
           companyName: config.companyName,

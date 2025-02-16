@@ -16,10 +16,13 @@ export default function DocumentUpload() {
   const { toast } = useToast();
   const { setStep } = useWizardStore();
 
-  const uploadMutation = useMutation({
+  const { appId } = useWizardStore();
+const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
+      if (!appId) throw new Error("No app ID found");
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("appId", appId.toString());
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',

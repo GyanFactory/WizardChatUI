@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 interface WizardState {
   currentStep: number;
+  appId: number | null;
   companyName: string;
   welcomeMessage: string;
   primaryColor: string;
@@ -29,6 +30,8 @@ export const defaultAvatars = [
 
 export const useWizardStore = create<WizardState>((set) => ({
   currentStep: 0,
+  appId: null,
+  setAppId: (id: number) => set({ appId: id }),
   companyName: '',
   welcomeMessage: '',
   primaryColor: '#2563eb',
