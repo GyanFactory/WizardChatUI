@@ -32,8 +32,44 @@ def split_text_into_chunks(text: str, chunk_size: int = 1000) -> List[str]:
 
     return chunks
 
+def combine_related_chunks(chunks: List[str], similarity_threshold: float = 0.7) -> List[str]:
+    """Combine related text chunks for better context."""
+    from difflib import SequenceMatcher
+    
+    combined_chunks = []
+    current_chunk = chunks[0] if chunks else ""
+    
+    for i in range(1, len(chunks)):
+        similarity = SequenceMatcher(None, current_chunk, chunks[i]).ratio()
+        if similarity >= similarity_threshold:
+            current_chunk += " " + chunks[i]
+        else:
+            if current_chunk:
+                combined_chunks.append(current_chunk)
+            current_chunk = chunks[i]
+    
+    if current_chunk:
+        combined_chunks.append(current_chunk)
+    
+    return combined_chunks
+
+def summarize_context(text: str, max_length: int = 150) -> str:
+    """Generate a concise summary of the text."""
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    summary = []
+    current_length = 0
+    
+    for sentence in sentences:
+        if current_length + len(sentence) <= max_length:
+            summary.append(sentence)
+            current_length += len(sentence)
+        else:
+            break
+    
+    return ' '.join(summary)
+
 def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
-    """Generate Q&A pairs from text chunks with improved handling of documentation."""
+    """Generate Q&A pairs with context-aware responses."""
     qa_pairs = []
     
     # Common document section headers
@@ -44,6 +80,9 @@ def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
         r'^(?:Note|Warning|Caution|Important):\s*(.+)',
         r'^(?:Procedure|Steps|Instructions):\s*(.+)'
     ]
+    
+    # Combine related chunks for better context
+    combined_chunks = combine_related_chunks(chunks)
 
     for chunk in chunks:
         if len(chunk) < 30:  # Skip very short chunks
@@ -94,9 +133,24 @@ def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
                 clean_sentence = re.sub(r'^(?:this |the |a |an |in order to |to )', '', lower_sentence)
                 question = "What is the purpose of " + clean_sentence + "?"
                 
-            qa_pairs.append({"question": question, "answer": sentence})
-
-    return qa_pairs
+            # Create context-aware answer by combining relevant information
+            context = ""
+            for chunk in combined_chunks:
+                if sentence.lower() in chunk.lower():
+                    context = summarize_context(chunk)
+                    break
+            
+            # Generate a more natural answer
+            if context:
+                answer = f"{sentence} {context}"
+            else:
+                answer = sentence
+                
+            qa_pairs.append({
+                "question": question,
+                "answer": answer,
+                "context": context
+            })
 
     return qa_pairs
 
