@@ -68,8 +68,57 @@ def summarize_context(text: str, max_length: int = 150) -> str:
     
     return ' '.join(summary)
 
-def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
-    """Generate Q&A pairs with context-aware responses."""
+def generate_qa_pairs(chunks: List[str], model: str = "opensource", api_key: str = None) -> List[Dict[str, str]]:
+    """Generate Q&A pairs with context-aware responses using specified model."""
+    if model == "openai":
+        try:
+            import openai
+            openai.api_key = api_key
+            qa_pairs = []
+            for chunk in chunks:
+                response = openai.ChatCompletion.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "Generate a question and answer pair from this text."},
+                        {"role": "user", "content": chunk}
+                    ]
+                )
+                result = response.choices[0].message.content
+                qa_pairs.append({"question": result.split("\nA:")[0].replace("Q:", "").strip(),
+                               "answer": result.split("\nA:")[1].strip() if "\nA:" in result else chunk,
+                               "context": ""})
+            return qa_pairs
+        except Exception as e:
+            print(f"OpenAI Error: {str(e)}")
+            # Fallback to opensource
+            pass
+            
+    elif model == "deepseek":
+        try:
+            import requests
+            headers = {"Authorization": f"Bearer {api_key}"}
+            qa_pairs = []
+            for chunk in chunks:
+                response = requests.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers=headers,
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [
+                            {"role": "system", "content": "Generate a question and answer pair from this text."},
+                            {"role": "user", "content": chunk}
+                        ]
+                    }
+                )
+                result = response.json()["choices"][0]["message"]["content"]
+                qa_pairs.append({"question": result.split("\nA:")[0].replace("Q:", "").strip(),
+                               "answer": result.split("\nA:")[1].strip() if "\nA:" in result else chunk,
+                               "context": ""})
+            return qa_pairs
+        except Exception as e:
+            print(f"DeepSeek Error: {str(e)}")
+            # Fallback to opensource
+            pass
     qa_pairs = []
     
     # Common document section headers

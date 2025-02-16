@@ -6,6 +6,7 @@ import { Upload, File, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useWizardStore } from "@/store/wizardStore";
 import { useMutation } from "@tanstack/react-query";
+import { Input } from "@/components/ui/input";
 
 interface FileWithPath extends File {
   path?: string;
@@ -15,11 +16,18 @@ export default function DocumentUpload() {
   const [file, setFile] = useState<FileWithPath | null>(null);
   const { toast } = useToast();
   const { setStep } = useWizardStore();
+  const [selectedModel, setSelectedModel] = useState("opensource");
+  const [apiKey, setApiKey] = useState("");
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
 
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("model", selectedModel);
+      if (selectedModel !== "opensource") {
+        formData.append("apiKey", apiKey);
+      }
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -72,6 +80,13 @@ export default function DocumentUpload() {
     }
   };
 
+  const handleModelSelect = (model: string) => {
+    setSelectedModel(model);
+    if (model !== "opensource") {
+      setShowApiKeyDialog(true);
+    }
+  };
+
   const handleUpload = async () => {
     if (!file) return;
     uploadMutation.mutate(file);
@@ -88,6 +103,41 @@ export default function DocumentUpload() {
 
       <Card className="p-6">
         <div className="space-y-6">
+          <div className="flex gap-4 justify-center">
+            <Button
+              variant={selectedModel === "opensource" ? "default" : "outline"}
+              onClick={() => handleModelSelect("opensource")}
+            >
+              Open Source Model
+            </Button>
+            <Button
+              variant={selectedModel === "openai" ? "default" : "outline"}
+              onClick={() => handleModelSelect("openai")}
+            >
+              OpenAI
+            </Button>
+            <Button
+              variant={selectedModel === "deepseek" ? "default" : "outline"}
+              onClick={() => handleModelSelect("deepseek")}
+            >
+              DeepSeek
+            </Button>
+          </div>
+
+          {showApiKeyDialog && (
+            <div className="space-y-4">
+              <Input
+                type="password"
+                placeholder="Enter API Key"
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+              />
+              <Button onClick={() => setShowApiKeyDialog(false)}>
+                Confirm API Key
+              </Button>
+            </div>
+          )}
+
           <div 
             className="border-2 border-dashed border-gray-200 rounded-lg p-8"
             onDragOver={(e) => {

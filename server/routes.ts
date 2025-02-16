@@ -28,6 +28,42 @@ const upload = multer({
   },
 });
 
+// Placeholder for the actual implementation.  This needs to be fleshed out based on how
+// open-source, OpenAI, and DeepSeek APIs are used.  Error handling and API key validation
+// are crucial here.
+async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
+  if (model === "opensource") {
+    // Your existing open-source QA generation logic here
+    return [
+      { question: "What is this document about?", answer: "This is a sample answer." },
+      { question: "What are the key points?", answer: "These are the key points." },
+    ];
+
+  } else if (model === "openai") {
+    // OpenAI API call using apiKey
+    if (!apiKey) throw new Error("OpenAI API key is required");
+    //Implementation using OpenAI API here.  Requires handling API calls, error responses, etc.
+
+    return [
+      { question: "OpenAI Question 1", answer: "OpenAI Answer 1" },
+      { question: "OpenAI Question 2", answer: "OpenAI Answer 2" },
+    ];
+
+
+  } else if (model === "deepseek") {
+    // DeepSeek API call using apiKey
+    if (!apiKey) throw new Error("DeepSeek API key is required");
+     //Implementation using DeepSeek API here.  Requires handling API calls, error responses, etc.
+    return [
+      { question: "DeepSeek Question 1", answer: "DeepSeek Answer 1" },
+      { question: "DeepSeek Question 2", answer: "DeepSeek Answer 2" },
+    ];
+  } else {
+    throw new Error(`Unsupported model: ${model}`);
+  }
+}
+
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Upload PDF and generate Q&A pairs
   app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
@@ -48,7 +84,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("Created document:", doc);
 
-      // Process PDF with Python service
+      // Process PDF with Python service (this part remains unchanged)
       const pythonProcess = spawn("python", [
         path.join(process.cwd(), "server/services/pdf_processor.py"),
         req.file.path,
@@ -78,7 +114,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         try {
           console.log("Raw QA data:", qaData);
-          const qaItems = JSON.parse(qaData);
+          const text = qaData; // Assuming qaData contains the extracted text from the PDF
+          const model = req.body.model || "opensource";
+          const apiKey = req.body.apiKey;
+          const qaItems = await generateQAPairs(text, model, apiKey);
+
 
           // Store Q&A pairs
           const storedItems = await storage.createQAItems(
@@ -119,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const configId = parseInt(req.params.configId);
       const config = await storage.getChatbotConfig(configId);
-      
+
       if (!config) {
         res.status(404).json({ error: "Configuration not found" });
         return;
