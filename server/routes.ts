@@ -33,31 +33,115 @@ const upload = multer({
 // are crucial here.
 async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
   if (model === "opensource") {
-    // Your existing open-source QA generation logic here
-    return [
-      { question: "What is this document about?", answer: "This is a sample answer." },
-      { question: "What are the key points?", answer: "These are the key points." },
-    ];
+    const pythonProcess = spawn("python", [
+      path.join(process.cwd(), "server/services/pdf_processor.py"),
+      text
+    ]);
+    
+    return new Promise((resolve, reject) => {
+      let output = '';
+      pythonProcess.stdout.on('data', (data) => {
+        output += data;
+      });
+      
+      pythonProcess.on('close', (code) => {
+        if (code !== 0) {
+          reject(new Error("Failed to process with opensource model"));
+          return;
+        }
+        resolve(JSON.parse(output));
+      });
+    });
 
   } else if (model === "openai") {
-    // OpenAI API call using apiKey
     if (!apiKey) throw new Error("OpenAI API key is required");
-    //Implementation using OpenAI API here.  Requires handling API calls, error responses, etc.
+    
+    const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
+    const qa_pairs = [];
+    
+    for (const chunk of chunks) {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo",
+          messages: [
+            {
+              role: "system",
+              content: "Generate a relevant question and detailed answer pair from the given text."
+            },
+            {
+              role: "user",
+              content: chunk
+            }
+          ],
+          temperature: 0.7
+        })
+      });
 
-    return [
-      { question: "OpenAI Question 1", answer: "OpenAI Answer 1" },
-      { question: "OpenAI Question 2", answer: "OpenAI Answer 2" },
-    ];
+      if (!response.ok) {
+        throw new Error(`OpenAI API error: ${response.statusText}`);
+      }
 
+      const result = await response.json();
+      const content = result.choices[0].message.content;
+      const parts = content.split('\nA: ');
+      qa_pairs.push({
+        question: parts[0].replace('Q: ', '').trim(),
+        answer: parts[1] ? parts[1].trim() : chunk,
+        context: ""
+      });
+    }
+    
+    return qa_pairs;
 
   } else if (model === "deepseek") {
-    // DeepSeek API call using apiKey
     if (!apiKey) throw new Error("DeepSeek API key is required");
-     //Implementation using DeepSeek API here.  Requires handling API calls, error responses, etc.
-    return [
-      { question: "DeepSeek Question 1", answer: "DeepSeek Answer 1" },
-      { question: "DeepSeek Question 2", answer: "DeepSeek Answer 2" },
-    ];
+    
+    const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
+    const qa_pairs = [];
+    
+    for (const chunk of chunks) {
+      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "deepseek-chat",
+          messages: [
+            {
+              role: "system",
+              content: "Generate a relevant question and detailed answer pair from the given text."
+            },
+            {
+              role: "user",
+              content: chunk
+            }
+          ],
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`DeepSeek API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const content = result.choices[0].message.content;
+      const parts = content.split('\nA: ');
+      qa_pairs.push({
+        question: parts[0].replace('Q: ', '').trim(),
+        answer: parts[1] ? parts[1].trim() : chunk,
+        context: ""
+      });
+    }
+    
+    return qa_pairs;
   } else {
     throw new Error(`Unsupported model: ${model}`);
   }
