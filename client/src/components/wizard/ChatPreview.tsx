@@ -21,12 +21,11 @@ export default function ChatPreview() {
   const [isOpen, setIsOpen] = useState(true); // Start with chat window open
 
   return (
-    <div className="relative w-full h-[500px] border rounded-lg bg-gray-100 p-4">
-      <div className="absolute bottom-4 right-4">
-        {/* Chat Widget Button - Only show when chat is closed */}
+    <div className="relative w-full h-[400px] border rounded-lg bg-gray-100 p-3">
+      <div className="absolute bottom-3 right-3">
         {!isOpen && (
           <Button
-            className="ml-auto flex items-center gap-2 mb-4"
+            className="ml-auto flex items-center gap-2 mb-3"
             onClick={() => setIsOpen(true)}
             style={{
               backgroundColor: primaryColor,
@@ -38,13 +37,11 @@ export default function ChatPreview() {
           </Button>
         )}
 
-        {/* Chat Window */}
         {isOpen && (
           <div
             className="w-[280px] rounded-lg shadow-lg"
             style={{ backgroundColor }}
           >
-            {/* Header */}
             <div
               className="p-3 rounded-t-lg flex items-center justify-between"
               style={{ backgroundColor: primaryColor }}
@@ -71,7 +68,6 @@ export default function ChatPreview() {
               </Button>
             </div>
 
-            {/* Chat Content */}
             <div className="h-[240px] p-3 overflow-y-auto bg-white">
               <div className="flex gap-2 mb-3">
                 <Avatar className="h-6 w-6 flex-shrink-0">
@@ -94,7 +90,6 @@ export default function ChatPreview() {
               </div>
             </div>
 
-            {/* Input Area */}
             <div className="p-2 border-t bg-white rounded-b-lg">
               <div className="flex gap-2">
                 <Input
