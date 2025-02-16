@@ -15,20 +15,30 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface AuthFormProps {
   onSuccess: () => void;
 }
 
+type FormValues = {
+  email: string;
+  password: string;
+  confirmPassword?: string;
+};
+
 export default function AuthForm({ onSuccess }: AuthFormProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const { loginMutation, registerMutation } = useAuth();
+  const { toast } = useToast();
 
-  const form = useForm({
+  const form = useForm<FormValues>({
     resolver: zodResolver(
-      insertUserSchema.extend({
-        confirmPassword: insertUserSchema.shape.password.optional(),
-      }),
+      mode === "register"
+        ? insertUserSchema.extend({
+            confirmPassword: insertUserSchema.shape.password,
+          })
+        : insertUserSchema
     ),
     defaultValues: {
       email: "",
@@ -37,7 +47,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     },
   });
 
-  const onSubmit = async (values: any) => {
+  const onSubmit = async (values: FormValues) => {
     try {
       if (mode === "register") {
         if (values.password !== values.confirmPassword) {
@@ -46,28 +56,42 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           });
           return;
         }
+
         await registerMutation.mutateAsync(
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
+              toast({
+                title: "Registration successful",
+                description: "Please check your email to verify your account.",
+              });
               form.reset();
-              onSuccess();
+              setMode("login");
             },
-          },
+          }
         );
       } else {
         await loginMutation.mutateAsync(
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
+              toast({
+                title: "Login successful",
+                description: "Welcome back!",
+              });
               form.reset();
               onSuccess();
             },
-          },
+          }
         );
       }
     } catch (error) {
-      // Error is already handled by the mutation
+      const errorMessage = error instanceof Error ? error.message : "An error occurred";
+      toast({
+        title: mode === "register" ? "Registration failed" : "Login failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
       form.setValue("password", "");
       if (mode === "register") {
         form.setValue("confirmPassword", "");
@@ -98,6 +122,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 <FormControl>
                   <Input 
                     placeholder="Enter your email" 
+                    type="email"
                     {...field} 
                     disabled={loginMutation.isPending || registerMutation.isPending}
                   />
