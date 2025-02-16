@@ -171,7 +171,7 @@ export default function AuthPage() {
                                 toast({
                                   title: "Account created",
                                   description: "However, the verification email could not be sent. You can request a new one later.",
-                                  variant: "warning",
+                                  variant: "destructive",
                                 });
                               } else {
                                 toast({
@@ -268,11 +268,11 @@ export default function AuthPage() {
             <div className="flex h-full flex-col justify-center space-y-8">
               <div className="space-y-4">
                 <h1 className="text-4xl font-bold tracking-tight text-primary">
-                  AI-Powered Document Assistant
+                  End User Guide Assistant
                 </h1>
                 <p className="text-xl text-muted-foreground">
                   Transform your documents into interactive knowledge bases with our
-                  intelligent chatbot.
+                  intelligent assistant.
                 </p>
               </div>
 
@@ -312,7 +312,7 @@ export default function AuthPage() {
                   <div>
                     <h3 className="font-semibold">Quick Integration</h3>
                     <p className="text-sm text-muted-foreground">
-                      Easily embed the chat widget into your website
+                      Easily embed the guide widget into your website
                     </p>
                   </div>
                 </div>

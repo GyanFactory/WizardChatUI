@@ -22,7 +22,7 @@ export function Navigation() {
             <NavigationMenuItem>
               <Link href="/">
                 <NavigationMenuLink className="font-bold">
-                  AI Chatbot
+                  End User Guide
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>
