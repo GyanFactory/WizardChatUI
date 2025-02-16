@@ -1,24 +1,19 @@
-import nodemailer from 'nodemailer';
+import sgMail from '@sendgrid/mail';
 import { User } from '@shared/schema';
 
-// Create a test account for development
-const transporter = nodemailer.createTransport({
-  host: "smtp.ethereal.email",
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+if (!process.env.SENDGRID_API_KEY) {
+  throw new Error("SENDGRID_API_KEY environment variable must be set");
+}
 
-export async function sendVerificationEmail(user: User, verificationToken: string) {
-  const verificationUrl = `${process.env.APP_URL}/verify-email?token=${verificationToken}`;
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-  const mailOptions = {
-    from: '"Chatbot App" <noreply@chatbotapp.com>',
+export async function sendVerificationEmail(user: { email: string }, verificationToken: string) {
+  const verificationUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
+
+  const msg = {
     to: user.email,
-    subject: "Verify your email address",
+    from: 'noreply@chatbotapp.com', // Replace with your verified sender
+    subject: 'Verify your email address',
     html: `
       <h1>Welcome to Chatbot App!</h1>
       <p>Please click the link below to verify your email address:</p>
@@ -28,10 +23,14 @@ export async function sendVerificationEmail(user: User, verificationToken: strin
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    await sgMail.send(msg);
+    console.log('Verification email sent successfully');
     return true;
   } catch (error) {
     console.error('Error sending verification email:', error);
+    if (error.response) {
+      console.error('SendGrid error response:', error.response.body);
+    }
     return false;
   }
 }

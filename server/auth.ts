@@ -98,11 +98,20 @@ export function setupAuth(app: Express) {
       verificationToken,
     });
 
-    await sendVerificationEmail(user, verificationToken);
+    const emailSent = await sendVerificationEmail(user, verificationToken);
 
-    res.status(201).json({ 
-      message: "Registration successful. Please check your email to verify your account." 
-    });
+    if (!emailSent) {
+      // If email fails to send, we should still create the account but inform the user
+      res.status(201).json({ 
+        message: "Account created but verification email could not be sent. Please try requesting a new verification email later.",
+        status: "email_failed"
+      });
+    } else {
+      res.status(201).json({ 
+        message: "Registration successful. Please check your email to verify your account.",
+        status: "success"
+      });
+    }
   }));
 
   app.post("/api/login", (req, res, next) => {
