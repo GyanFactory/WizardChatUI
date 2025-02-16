@@ -52,7 +52,7 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
 }
 
 // Generate QA pairs using either opensource or OpenAI approach
-async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
+async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string, context?: string): Promise<any[]> {
   if (model === "opensource") {
     // Use simple rule-based QA generation
     return new Promise((resolve, reject) => {
@@ -91,16 +91,20 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
       throw new Error("OpenAI API key is required");
     }
 
-    // Process text in smaller chunks
+    // Process text in larger chunks for better context
     const chunks = text.split(/\n\s*\n/).filter(chunk => {
       const trimmed = chunk.trim();
-      return trimmed.length >= 50 && trimmed.length <= 1500; // Reasonable chunk sizes
+      return trimmed.length >= 100 && trimmed.length <= 2000; // Increased chunk size
     });
 
     console.log(`Processing ${chunks.length} chunks with OpenAI`);
     const qa_pairs = [];
     let retryCount = 0;
     const maxRetries = 3;
+
+    const systemPrompt = context 
+      ? `You are an expert at creating comprehensive Q&A pairs from documents. Focus on extracting information about: ${context}. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`
+      : `You are an expert at creating comprehensive Q&A pairs from documents. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Focus on key information, technical details, and important facts. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`;
 
     for (const chunk of chunks) {
       try {
@@ -118,7 +122,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
             messages: [
               {
                 role: "system",
-                content: "Generate a single, focused question and comprehensive answer pair from the given text. Format your response exactly as: 'Q: [question]\nA: [answer]'"
+                content: systemPrompt
               },
               {
                 role: "user",
@@ -126,7 +130,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
               }
             ],
             temperature: 0.7,
-            max_tokens: 500
+            max_tokens: 1000 // Increased token limit for more detailed responses
           })
         });
 
@@ -148,30 +152,23 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
         const result = await response.json();
         const content = result.choices[0].message.content;
 
-        if (content.includes('Q:') && content.includes('A:')) {
-          const [question, answer] = content.split('\nA:');
-          qa_pairs.push({
-            question: question.replace('Q:', '').trim(),
-            answer: answer.trim(),
-            context: chunk
-          });
+        // Split multiple Q&A pairs
+        const pairs = content.split(/(?=Q:)/).filter(Boolean);
+        for (const pair of pairs) {
+          if (pair.includes('Q:') && pair.includes('A:')) {
+            const [question, answer] = pair.split('\nA:');
+            qa_pairs.push({
+              question: question.replace('Q:', '').trim(),
+              answer: answer.trim(),
+              context: chunk
+            });
+          }
         }
       } catch (error) {
         console.error("Error processing chunk:", error);
-        // Instead of silently continuing, collect some basic QA pairs from the chunk
-        const basicQuestion = `What is the main topic discussed in this text: "${chunk.substring(0, 100)}..."?`;
-        qa_pairs.push({
-          question: basicQuestion,
-          answer: chunk.substring(0, 200) + "...",
-          context: chunk,
-        });
+        // Instead of generating basic QA, we'll skip problematic chunks
+        continue;
       }
-    }
-
-    // If we couldn't generate any QA pairs with OpenAI, fall back to rule-based approach
-    if (qa_pairs.length === 0) {
-      console.log("Falling back to rule-based QA generation");
-      return generateQAPairs(text, "opensource");
     }
 
     return qa_pairs;
@@ -200,10 +197,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Generate QA pairs from the extracted text
         const model = req.body.model || "opensource";
         const apiKey = req.body.apiKey;
+        const context = req.body.context;
 
         console.log(`Generating QA pairs using ${model} model`);
-        const qaItems = await generateQAPairs(extractedText, model, apiKey);
-        console.log(`Generated ${qaItems.length} QA pairs`);
+        const qaItems = await generateQAPairs(extractedText, model, apiKey, context);
+        console.log(`Generated ${qaItems.length} Q&A pairs`);
 
         if (!qaItems.length) {
           throw new Error("No QA pairs could be generated");

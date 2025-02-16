@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWizardStore } from "@/store/wizardStore";
 import { useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface FileWithPath extends File {
   path?: string;
@@ -19,12 +20,14 @@ export default function DocumentUpload() {
   const [selectedModel, setSelectedModel] = useState("opensource");
   const [apiKey, setApiKey] = useState("");
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [context, setContext] = useState("");
 
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("model", selectedModel);
+      formData.append("context", context);
       if (selectedModel !== "opensource") {
         formData.append("apiKey", apiKey);
       }
@@ -116,6 +119,16 @@ export default function DocumentUpload() {
 
       <Card className="p-6">
         <div className="space-y-6">
+          <div className="space-y-4">
+            <Label>Context (Optional)</Label>
+            <Textarea
+              placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a resume, I want to extract information about work experience, skills, and projects.'"
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              className="h-24"
+            />
+          </div>
+
           <div className="flex gap-4 justify-center">
             <Button
               variant={selectedModel === "opensource" ? "default" : "outline"}
