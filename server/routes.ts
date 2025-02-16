@@ -246,7 +246,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
-        throw new Error("No file uploaded");
+        return res.status(400).json({ error: "No file uploaded" });
       }
 
       try {
@@ -325,21 +325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create chatbot configuration
   app.post("/api/chatbot-config", async (req, res) => {
     try {
-      const config = await storage.createChatbotConfig({
-        companyName: req.body.companyName,
-        welcomeMessage: req.body.welcomeMessage,
-        primaryColor: req.body.primaryColor,
-        fontFamily: req.body.fontFamily,
-        position: req.body.position,
-        avatarUrl: req.body.avatarUrl,
-        bubbleStyle: req.body.bubbleStyle,
-        backgroundColor: req.body.backgroundColor,
-        buttonStyle: req.body.buttonStyle,
-      });
-
-      res.json({
-        config,
-      });
+      const config = await storage.createChatbotConfig(req.body);
+      res.json({ config });
     } catch (err) {
       console.error("Failed to create chatbot config:", err);
       res.status(500).json({ error: "Failed to create chatbot config" });
