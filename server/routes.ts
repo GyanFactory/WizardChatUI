@@ -408,9 +408,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Serve widget.js
+  // Serve widget.js with proper content type and caching headers
   app.get("/widget.js", (req, res) => {
-    res.sendFile(path.join(process.cwd(), "public/widget.js"));
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'no-cache');
+    const widgetPath = path.join(process.cwd(), "public", "widget.js");
+
+    // Check if file exists
+    if (!fs.existsSync(widgetPath)) {
+      console.error('widget.js not found at:', widgetPath);
+      res.status(404).send('Widget script not found');
+      return;
+    }
+
+    res.sendFile(widgetPath);
   });
 
   const httpServer = createServer(app);

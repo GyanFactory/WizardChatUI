@@ -51,7 +51,7 @@ export default function Embed() {
     },
   });
 
-  // Generate the embed code
+  // Generate the embed code with full URL
   const embedCode = `
 <!-- AI Chatbot Widget -->
 <script>
@@ -60,7 +60,7 @@ export default function Embed() {
     w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments)};
     js=d.createElement(s),fjs=d.getElementsByTagName(s)[0];
     js.id=o;js.src=f;js.async=1;fjs.parentNode.insertBefore(js,fjs);
-  }(window,document,'script','aiChat','/widget.js'));
+  }(window,document,'script','aiChat','${window.location.origin}/widget.js'));
   aiChat('init', '${configId}');
 </script>
 `.trim();
