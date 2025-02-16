@@ -21,7 +21,7 @@ export default function ChatPreview() {
   const [isOpen, setIsOpen] = useState(true); // Start with chat window open
 
   return (
-    <div className="relative w-full h-[600px] border rounded-lg bg-gray-100 p-4">
+    <div className="relative w-full h-[500px] border rounded-lg bg-gray-100 p-4">
       <div className="absolute bottom-4 right-4">
         {/* Chat Widget Button - Only show when chat is closed */}
         {!isOpen && (
@@ -41,52 +41,52 @@ export default function ChatPreview() {
         {/* Chat Window */}
         {isOpen && (
           <div
-            className="w-[300px] rounded-lg shadow-lg"
+            className="w-[280px] rounded-lg shadow-lg"
             style={{ backgroundColor }}
           >
             {/* Header */}
             <div
-              className="p-4 rounded-t-lg flex items-center justify-between"
+              className="p-3 rounded-t-lg flex items-center justify-between"
               style={{ backgroundColor: primaryColor }}
             >
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
+              <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6">
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={companyName} />
                   ) : (
-                    <div className="bg-white w-full h-full flex items-center justify-center text-blue-600 font-semibold">
+                    <div className="bg-white w-full h-full flex items-center justify-center text-blue-600 font-semibold text-sm">
                       {companyName.charAt(0)}
                     </div>
                   )}
                 </Avatar>
-                <span className="text-white font-medium">{companyName || 'Company Name'}</span>
+                <span className="text-white font-medium text-sm">{companyName || 'Company Name'}</span>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-white hover:text-white/80"
+                className="text-white hover:text-white/80 h-6 w-6"
                 onClick={() => setIsOpen(false)}
               >
-                <X className="w-5 h-5" />
+                <X className="h-4 w-4" />
               </Button>
             </div>
 
             {/* Chat Content */}
-            <div className="h-[300px] p-4 overflow-y-auto bg-white">
-              <div className="flex gap-3 mb-4">
-                <Avatar className="h-8 w-8 flex-shrink-0">
+            <div className="h-[240px] p-3 overflow-y-auto bg-white">
+              <div className="flex gap-2 mb-3">
+                <Avatar className="h-6 w-6 flex-shrink-0">
                   {avatarUrl ? (
                     <img src={avatarUrl} alt={companyName} />
                   ) : (
-                    <div className="bg-blue-100 w-full h-full flex items-center justify-center text-blue-600 font-semibold">
+                    <div className="bg-blue-100 w-full h-full flex items-center justify-center text-blue-600 font-semibold text-sm">
                       {companyName.charAt(0)}
                     </div>
                   )}
                 </Avatar>
                 <div
-                  className="bg-blue-100 p-3 rounded-lg max-w-[80%]"
+                  className="bg-blue-100 p-2 rounded-lg max-w-[80%] text-sm"
                   style={{
-                    borderRadius: bubbleStyle === 'rounded' ? '20px' : '0.5rem'
+                    borderRadius: bubbleStyle === 'rounded' ? '16px' : '0.5rem'
                   }}
                 >
                   {welcomeMessage || 'Hello! How can I help you today?'}
@@ -95,17 +95,18 @@ export default function ChatPreview() {
             </div>
 
             {/* Input Area */}
-            <div className="p-4 border-t bg-white rounded-b-lg">
+            <div className="p-2 border-t bg-white rounded-b-lg">
               <div className="flex gap-2">
                 <Input
                   placeholder="Type your message..."
-                  className="flex-1"
+                  className="flex-1 h-8 text-sm"
                 />
                 <Button
                   size="icon"
+                  className="h-8 w-8"
                   style={{ backgroundColor: primaryColor }}
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-3 w-3" />
                 </Button>
               </div>
             </div>

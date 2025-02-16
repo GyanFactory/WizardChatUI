@@ -71,34 +71,36 @@
           position: absolute;
           bottom: 80px;
           ${this.config.position === 'right' ? 'right: 0' : 'left: 0'};
-          width: 320px;
+          width: 280px;
           background-color: ${this.config.backgroundColor};
           border-radius: 8px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
           display: block; /* Visible by default */
-          max-height: calc(100vh - 120px);
-          min-height: 400px;
+          max-height: 360px;
+          min-height: 360px;
+          font-size: 14px;
         }
 
         .ai-chat-header {
           background-color: ${this.config.primaryColor};
           color: white;
-          padding: 12px;
+          padding: 10px 12px;
           border-radius: 8px 8px 0 0;
           display: flex;
           align-items: center;
           justify-content: space-between;
+          font-size: 14px;
         }
 
         .ai-chat-messages {
-          height: calc(100% - 120px);
+          height: 240px;
           overflow-y: auto;
           padding: 12px;
           background: white;
         }
 
         .ai-chat-input {
-          padding: 12px;
+          padding: 8px;
           border-top: 1px solid rgba(0,0,0,0.1);
           display: flex;
           gap: 8px;
@@ -108,33 +110,37 @@
 
         .ai-chat-textbox {
           flex: 1;
-          padding: 8px 12px;
+          padding: 6px 10px;
           border: 1px solid rgba(0,0,0,0.2);
           border-radius: 4px;
           font-family: inherit;
+          font-size: 14px;
           resize: none;
           outline: none;
-        }
-
-        .ai-chat-textbox:focus {
-          border-color: ${this.config.primaryColor};
+          height: 32px;
         }
 
         .ai-chat-send {
           background-color: ${this.config.primaryColor};
           color: white;
           border: none;
-          padding: 8px 16px;
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
           border-radius: 4px;
           cursor: pointer;
           font-family: inherit;
         }
 
         .ai-chat-message {
-          margin-bottom: 12px;
+          margin-bottom: 10px;
           max-width: 85%;
           display: flex;
           flex-direction: column;
+          font-size: 14px;
         }
 
         .ai-chat-message.bot {
