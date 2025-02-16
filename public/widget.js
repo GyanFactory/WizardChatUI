@@ -15,16 +15,16 @@
         if (!response.ok) throw new Error('Failed to load chatbot configuration');
         const data = await response.json();
         this.config = data.config;
-        
+
         // Create and inject styles
         this.injectStyles();
-        
+
         // Create widget DOM
         this.createWidgetDOM();
-        
+
         // Connect WebSocket
         this.connectWebSocket();
-        
+
         // Initialize event listeners
         this.initializeEventListeners();
       } catch (error) {
@@ -186,27 +186,42 @@
       document.body.appendChild(this.container);
 
       // Add welcome message
-      const messagesContainer = chatWindow.querySelector('.ai-chat-messages');
       this.addMessage(this.config.welcomeMessage, 'bot');
     }
 
     connectWebSocket() {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
-      this.socket = new WebSocket(wsUrl);
-      
-      this.socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'answer') {
-          this.addMessage(data.content, 'bot');
-        }
-      };
+      try {
+        // Get the current host (includes port if any)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = window.location.host;
+        const wsUrl = `${wsProtocol}//${wsHost}/ws`;
 
-      this.socket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        this.addMessage('Sorry, there was an error connecting to the chat service.', 'bot');
-      };
+        console.log('Connecting to WebSocket:', wsUrl);
+        this.socket = new WebSocket(wsUrl);
+
+        this.socket.onopen = () => {
+          console.log('WebSocket connected successfully');
+        };
+
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          if (data.type === 'answer') {
+            this.addMessage(data.content, 'bot');
+          }
+        };
+
+        this.socket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          this.addMessage('Sorry, there was an error connecting to the chat service.', 'bot');
+        };
+
+        this.socket.onclose = () => {
+          console.log('WebSocket connection closed');
+          setTimeout(() => this.connectWebSocket(), 5000); // Try to reconnect after 5 seconds
+        };
+      } catch (error) {
+        console.error('Failed to connect WebSocket:', error);
+      }
     }
 
     initializeEventListeners() {
