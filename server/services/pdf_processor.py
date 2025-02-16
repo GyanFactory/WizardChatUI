@@ -91,7 +91,7 @@ def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
                 question = "What is required for " + clean_sentence + "?"
             else:
                 # For general statements, create a more natural question
-                clean_sentence = re.sub(r'^(?:this |the |a |an |in order to |to |)", '', lower_sentence)
+                clean_sentence = re.sub(r'^(?:this |the |a |an |in order to |to )', '', lower_sentence)
                 question = "What is the purpose of " + clean_sentence + "?"
                 
             qa_pairs.append({"question": question, "answer": sentence})
