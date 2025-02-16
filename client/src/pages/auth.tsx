@@ -18,20 +18,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { Redirect } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Mail, Lock, User, Bot, MessageSquare, FileText, Zap } from "lucide-react";
+import { Loader2, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
-});
-
-const registerSchema = loginSchema.extend({
-  name: z.string().min(2, "Name must be at least 2 characters"),
 });
 
 type RegisterResponse = {
@@ -53,9 +50,8 @@ export default function AuthPage() {
   });
 
   const registerForm = useForm({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(insertUserSchema),
     defaultValues: {
-      name: "",
       email: "",
       password: "",
     },
@@ -94,12 +90,8 @@ export default function AuthPage() {
               <CardContent>
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="login">
-                      Login
-                    </TabsTrigger>
-                    <TabsTrigger value="register">
-                      Register
-                    </TabsTrigger>
+                    <TabsTrigger value="login">Login</TabsTrigger>
+                    <TabsTrigger value="register">Register</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="login" className="space-y-4">
@@ -108,7 +100,6 @@ export default function AuthPage() {
                         onSubmit={loginForm.handleSubmit((data) => {
                           loginMutation.mutate(data, {
                             onError: (error: Error) => {
-                              // Clear password field on error
                               loginForm.setValue("password", "");
                               toast({
                                 title: "Login failed",
@@ -182,7 +173,6 @@ export default function AuthPage() {
                         onSubmit={registerForm.handleSubmit((data) => {
                           registerMutation.mutate(data, {
                             onError: (error: Error) => {
-                              // Clear password field on error
                               registerForm.setValue("password", "");
                               toast({
                                 title: "Registration failed",
@@ -210,26 +200,6 @@ export default function AuthPage() {
                         })}
                         className="space-y-4"
                       >
-                        <FormField
-                          control={registerForm.control}
-                          name="name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Name</FormLabel>
-                              <FormControl>
-                                <div className="relative">
-                                  <User className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                  <Input
-                                    placeholder="Enter your name"
-                                    className="pl-10"
-                                    {...field}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
                         <FormField
                           control={registerForm.control}
                           name="email"
@@ -301,7 +271,6 @@ export default function AuthPage() {
                   intelligent assistant.
                 </p>
               </div>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-start space-x-3 rounded-lg border bg-card p-4 shadow-sm">
                   <Bot className="h-6 w-6 text-primary" />
