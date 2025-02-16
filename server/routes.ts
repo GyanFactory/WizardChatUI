@@ -28,37 +28,83 @@ const upload = multer({
   },
 });
 
-async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
+async function generateQAPairs(filePath: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
+  // First extract text from PDF
+  const pythonProcess = spawn("python", [
+    path.join(process.cwd(), "server/services/pdf_processor.py"),
+    filePath
+  ]);
+
+  const extractedText = await new Promise<string>((resolve, reject) => {
+    let output = '';
+    let errorOutput = '';
+
+    pythonProcess.stdout.on('data', (data) => {
+      output += data;
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data;
+      console.error(`Python Error: ${data}`);
+    });
+
+    pythonProcess.on('close', (code) => {
+      if (code !== 0) {
+        reject(new Error(`PDF processing failed: ${errorOutput}`));
+      } else {
+        resolve(output);
+      }
+    });
+  });
+
+  console.log("Extracted text from PDF:", extractedText.substring(0, 200) + "...");
+
   if (model === "opensource") {
-    const pythonProcess = spawn("python", [
-      path.join(process.cwd(), "server/services/pdf_processor.py"),
-      text
+    // For opensource model, we'll use the same Python script but with a different mode
+    const qaProcess = spawn("python", [
+      path.join(process.cwd(), "server/services/qa_generator.py"),
+      extractedText
     ]);
 
     return new Promise((resolve, reject) => {
       let output = '';
-      pythonProcess.stdout.on('data', (data) => {
+      let errorOutput = '';
+
+      qaProcess.stdout.on('data', (data) => {
         output += data;
       });
 
-      pythonProcess.on('close', (code) => {
+      qaProcess.stderr.on('data', (data) => {
+        errorOutput += data;
+        console.error(`QA Generator Error: ${data}`);
+      });
+
+      qaProcess.on('close', (code) => {
         if (code !== 0) {
-          reject(new Error("Failed to process with opensource model"));
-          return;
+          reject(new Error(`QA generation failed: ${errorOutput}`));
+        } else {
+          try {
+            const qaItems = JSON.parse(output);
+            resolve(qaItems);
+          } catch (error) {
+            reject(new Error(`Failed to parse QA items: ${error}`));
+          }
         }
-        resolve(JSON.parse(output));
       });
     });
 
   } else if (model === "openai") {
     if (!apiKey) throw new Error("OpenAI API key is required");
 
-    const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
+    const chunks = extractedText.split('\n\n').filter(chunk => chunk.trim().length > 30);
+    console.log(`Processing ${chunks.length} chunks with OpenAI`);
     const qa_pairs = [];
 
     for (const chunk of chunks) {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limit delay
+
+        console.log("Processing chunk:", chunk.substring(0, 100) + "...");
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -71,7 +117,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
             messages: [
               {
                 role: "system",
-                content: "Generate a relevant question and detailed answer pair from the given text."
+                content: "Generate a relevant question and detailed answer pair from the given text. Format your response exactly as 'Q: [question]\nA: [answer]'"
               },
               {
                 role: "user",
@@ -83,6 +129,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
         });
 
         if (!response.ok) {
+          console.error("OpenAI API error:", response.status, await response.text());
           if (response.status === 429) {
             await new Promise(resolve => setTimeout(resolve, 2000));
             continue;
@@ -92,60 +139,20 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
 
         const result = await response.json();
         const content = result.choices[0].message.content;
-        const parts = content.split('\nA: ');
-        qa_pairs.push({
-          question: parts[0].replace('Q: ', '').trim(),
-          answer: parts[1] ? parts[1].trim() : chunk,
-          context: ""
-        });
+        console.log("OpenAI response:", content);
+
+        if (content.includes('Q:') && content.includes('A:')) {
+          const [question, answer] = content.split('\nA:').map(str => str.replace('Q:', '').trim());
+          qa_pairs.push({
+            question,
+            answer,
+            context: chunk
+          });
+        }
       } catch (error) {
         console.error("Error processing chunk:", error);
         continue;
       }
-    }
-
-    return qa_pairs;
-  } else if (model === "deepseek") {
-    if (!apiKey) throw new Error("DeepSeek API key is required");
-
-    const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
-    const qa_pairs = [];
-
-    for (const chunk of chunks) {
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "deepseek-chat",
-          messages: [
-            {
-              role: "system",
-              content: "Generate a relevant question and detailed answer pair from the given text."
-            },
-            {
-              role: "user",
-              content: chunk
-            }
-          ],
-          temperature: 0.7
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`DeepSeek API error: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      const content = result.choices[0].message.content;
-      const parts = content.split('\nA: ');
-      qa_pairs.push({
-        question: parts[0].replace('Q: ', '').trim(),
-        answer: parts[1] ? parts[1].trim() : chunk,
-        context: ""
-      });
     }
 
     return qa_pairs;
@@ -164,182 +171,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("No file uploaded");
       }
 
-      // Process PDF with Python service
-      const pythonProcess = spawn("python", [
-        path.join(process.cwd(), "server/services/pdf_processor.py"),
-        req.file.path,
-      ]);
+      try {
+        // Generate QA pairs directly from the uploaded file
+        const model = req.body.model || "opensource";
+        const apiKey = req.body.apiKey;
 
-      let pdfContent = "";
-      let errorData = "";
+        console.log(`Generating QA pairs using ${model} model`);
+        const qaItems = await generateQAPairs(req.file.path, model, apiKey);
+        console.log(`Generated ${qaItems.length} QA pairs`);
 
-      pythonProcess.stdout.on("data", (data) => {
-        pdfContent += data.toString();
-      });
-
-      pythonProcess.stderr.on("data", (data) => {
-        errorData += data.toString();
-        console.error(`Python Error: ${data}`);
-      });
-
-      await new Promise((resolve, reject) => {
-        pythonProcess.on("close", async (code) => {
-          if (code !== 0) {
-            reject(new Error(`PDF processing failed: ${errorData}`));
-            return;
-          }
-
-          try {
-            console.log("Raw content:", pdfContent);
-
-            // Store document in storage with content
-            const doc = await storage.createDocument({
-              configId: 1, // TODO: Get from session
-              filename: req.file!.originalname,
-              content: pdfContent,
-              createdAt: new Date().toISOString(),
-            });
-
-            console.log("Created document:", doc);
-
-            // Generate QA pairs
-            const model = req.body.model || "opensource";
-            const apiKey = req.body.apiKey;
-            const qaItems = await generateQAPairs(pdfContent, model, apiKey);
-
-            // Store Q&A pairs
-            const storedItems = await storage.createQAItems(
-              qaItems.map((item: any) => ({
-                configId: 1, // TODO: Get from session
-                documentId: doc.id,
-                question: item.question,
-                answer: item.answer,
-                isGenerated: true,
-              }))
-            );
-
-            console.log(`Generated ${storedItems.length} QA pairs`);
-
-            // Cleanup uploaded file
-            fs.unlinkSync(req.file.path);
-
-            resolve({ document: doc, qaItems: storedItems });
-          } catch (err) {
-            reject(err);
-          }
+        // Store document in storage
+        const doc = await storage.createDocument({
+          configId: 1, // TODO: Get from session
+          filename: req.file.originalname,
+          content: fs.readFileSync(req.file.path, 'utf-8'),
+          createdAt: new Date().toISOString(),
         });
-      }).then((result) => {
-        res.json(result);
-      }).catch((err) => {
+
+        console.log("Stored document:", doc);
+
+        // Store Q&A pairs
+        const storedItems = await storage.createQAItems(
+          qaItems.map((item: any) => ({
+            configId: 1, // TODO: Get from session
+            documentId: doc.id,
+            question: item.question,
+            answer: item.answer,
+            isGenerated: true,
+          }))
+        );
+
+        // Cleanup uploaded file
+        fs.unlinkSync(req.file.path);
+
+        res.json({
+          document: doc,
+          qaItems: storedItems,
+        });
+      } catch (err) {
         console.error("Failed to process document:", err);
-        res.status(500).json({ 
+        res.status(500).json({
           error: "Failed to process document",
           details: err instanceof Error ? err.message : String(err)
         });
-      });
+      }
     } catch (err) {
       console.error("Upload error:", err);
       res.status(500).json({
         error: "Failed to upload file",
         details: err instanceof Error ? err.message : String(err),
       });
-    }
-  });
-
-  // Generate embed code for chatbot
-  app.get("/api/embed/:configId", async (req, res) => {
-    try {
-      const configId = parseInt(req.params.configId);
-      const config = await storage.getChatbotConfig(configId);
-
-      if (!config) {
-        res.status(404).json({ error: "Configuration not found" });
-        return;
-      }
-
-      const embedCode = `
-<!-- AI Chatbot Widget -->
-<script>
-  (function(w,d,s,o,f,js,fjs){
-    w['AIChatWidget']=o;
-    w[o]=w[o]||function(){(w[o].q=w[o].q||[]).push(arguments)};
-    js=d.createElement(s),fjs=d.getElementsByTagName(s)[0];
-    js.id=o;js.src=f;js.async=1;fjs.parentNode.insertBefore(js,fjs);
-  }(window,document,'script','aiChat','/widget.js'));
-  aiChat('init', '${configId}');
-</script>`;
-
-      res.json({ embedCode });
-    } catch (err) {
-      console.error("Failed to generate embed code:", err);
-      res.status(500).json({ error: "Failed to generate embed code" });
-    }
-  });
-
-  // Get Q&A items for a chatbot config
-  app.get("/api/qa-items", async (req, res) => {
-    try {
-      const configId = 1; // TODO: Get from session
-      const items = await storage.getQAItems(configId);
-      res.json(items);
-    } catch (err) {
-      console.error("Failed to fetch QA items:", err);
-      res.status(500).json({ error: "Failed to fetch QA items" });
-    }
-  });
-
-  // Create new Q&A item
-  app.post("/api/qa-items", async (req, res) => {
-    try {
-      const { question, answer } = req.body;
-
-      if (!question || !answer) {
-        res.status(400).json({ error: "Question and answer are required" });
-        return;
-      }
-
-      const item = await storage.createQAItem({
-        configId: 1, // TODO: Get from session
-        documentId: null,
-        question,
-        answer,
-        isGenerated: false,
-      });
-
-      res.json(item);
-    } catch (err) {
-      console.error("Failed to create QA item:", err);
-      res.status(500).json({ error: "Failed to create QA item" });
-    }
-  });
-
-  // Update a Q&A item
-  app.patch("/api/qa-items/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { question, answer } = req.body;
-
-      const updated = await storage.updateQAItem(parseInt(id), {
-        question,
-        answer,
-      });
-
-      res.json(updated);
-    } catch (err) {
-      console.error("Failed to update QA item:", err);
-      res.status(500).json({ error: "Failed to update QA item" });
-    }
-  });
-
-  // Delete a Q&A item
-  app.delete("/api/qa-items/:id", async (req, res) => {
-    try {
-      const { id } = req.params;
-      await storage.deleteQAItem(parseInt(id));
-      res.status(204).end();
-    } catch (err) {
-      console.error("Failed to delete QA item:", err);
-      res.status(500).json({ error: "Failed to delete QA item" });
     }
   });
 
@@ -358,12 +239,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         buttonStyle: req.body.buttonStyle,
       });
 
-      // Get associated QA items
-      const qaItems = await storage.getQAItems(config.id);
-
       res.json({
         config,
-        qaItems,
       });
     } catch (err) {
       console.error("Failed to create chatbot config:", err);
