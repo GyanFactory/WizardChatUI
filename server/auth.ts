@@ -6,7 +6,6 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
-import { sendVerificationEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -33,6 +32,10 @@ async function generateVerificationToken() {
   return randomBytes(32).toString("hex");
 }
 
+function normalizeEmail(email: string): string {
+  return email.toLowerCase().trim();
+}
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET ?? 'your-secret-key',
@@ -55,8 +58,10 @@ export function setupAuth(app: Express) {
       { usernameField: 'email' },
       async (email, password, done) => {
         try {
-          console.log('Attempting login for email:', email);
-          const user = await storage.getUserByEmail(email);
+          const normalizedEmail = normalizeEmail(email);
+          console.log('Attempting login for email:', normalizedEmail);
+
+          const user = await storage.getUserByEmail(normalizedEmail);
           console.log('Found user:', user ? 'yes' : 'no');
 
           if (!user) {
@@ -106,7 +111,8 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", asyncHandler(async (req, res) => {
     try {
-      const { email, password } = req.body;
+      const { email: rawEmail, password } = req.body;
+      const email = normalizeEmail(rawEmail);
 
       if (!email || !password) {
         return res.status(400).json({ 
@@ -133,6 +139,8 @@ export function setupAuth(app: Express) {
         isVerified: false
       });
 
+      console.log('User registered:', email);
+
       const emailSent = await sendVerificationEmail(user, verificationToken);
 
       if (!emailSent) {
@@ -156,7 +164,10 @@ export function setupAuth(app: Express) {
   }));
 
   app.post("/api/login", (req, res, next) => {
-    console.log('Login attempt:', req.body.email);
+    const rawEmail = req.body.email;
+    const normalizedEmail = normalizeEmail(rawEmail);
+    console.log('Login attempt:', normalizedEmail);
+
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
         console.error('Authentication error:', err);
