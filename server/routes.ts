@@ -28,22 +28,19 @@ const upload = multer({
   },
 });
 
-// Placeholder for the actual implementation.  This needs to be fleshed out based on how
-// open-source, OpenAI, and DeepSeek APIs are used.  Error handling and API key validation
-// are crucial here.
 async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
   if (model === "opensource") {
     const pythonProcess = spawn("python", [
       path.join(process.cwd(), "server/services/pdf_processor.py"),
       text
     ]);
-    
+
     return new Promise((resolve, reject) => {
       let output = '';
       pythonProcess.stdout.on('data', (data) => {
         output += data;
       });
-      
+
       pythonProcess.on('close', (code) => {
         if (code !== 0) {
           reject(new Error("Failed to process with opensource model"));
@@ -55,15 +52,14 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
 
   } else if (model === "openai") {
     if (!apiKey) throw new Error("OpenAI API key is required");
-    
+
     const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
     const qa_pairs = [];
-    
+
     for (const chunk of chunks) {
       try {
-        // Add delay between requests to avoid rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limit delay
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -88,7 +84,6 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
 
         if (!response.ok) {
           if (response.status === 429) {
-            // Rate limit hit - wait longer and retry
             await new Promise(resolve => setTimeout(resolve, 2000));
             continue;
           }
@@ -108,15 +103,14 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
         continue;
       }
     }
-    
-    return qa_pairs;
 
+    return qa_pairs;
   } else if (model === "deepseek") {
     if (!apiKey) throw new Error("DeepSeek API key is required");
-    
+
     const chunks = text.split('\n\n').filter(chunk => chunk.length > 30);
     const qa_pairs = [];
-    
+
     for (const chunk of chunks) {
       const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
         method: 'POST',
@@ -153,13 +147,12 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
         context: ""
       });
     }
-    
+
     return qa_pairs;
   } else {
     throw new Error(`Unsupported model: ${model}`);
   }
 }
-
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Upload PDF and generate Q&A pairs
@@ -190,71 +183,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       await new Promise((resolve, reject) => {
-        pythonProcess.on("close", (code) => {
+        pythonProcess.on("close", async (code) => {
           if (code !== 0) {
             reject(new Error(`PDF processing failed: ${errorData}`));
-          } else {
-            resolve(true);
+            return;
+          }
+
+          try {
+            console.log("Raw content:", pdfContent);
+
+            // Store document in storage with content
+            const doc = await storage.createDocument({
+              configId: 1, // TODO: Get from session
+              filename: req.file!.originalname,
+              content: pdfContent,
+              createdAt: new Date().toISOString(),
+            });
+
+            console.log("Created document:", doc);
+
+            // Generate QA pairs
+            const model = req.body.model || "opensource";
+            const apiKey = req.body.apiKey;
+            const qaItems = await generateQAPairs(pdfContent, model, apiKey);
+
+            // Store Q&A pairs
+            const storedItems = await storage.createQAItems(
+              qaItems.map((item: any) => ({
+                configId: 1, // TODO: Get from session
+                documentId: doc.id,
+                question: item.question,
+                answer: item.answer,
+                isGenerated: true,
+              }))
+            );
+
+            console.log(`Generated ${storedItems.length} QA pairs`);
+
+            // Cleanup uploaded file
+            fs.unlinkSync(req.file.path);
+
+            resolve({ document: doc, qaItems: storedItems });
+          } catch (err) {
+            reject(err);
           }
         });
-      });
-
-      // Store document in storage with content
-      const doc = await storage.createDocument({
-        configId: 1, // TODO: Get from session
-        filename: req.file.originalname,
-        content: pdfContent,
-        createdAt: new Date().toISOString(),
-      });
-
-      console.log("Created document:", doc);
-
-      try {
-        console.log("Raw content:", pdfContent);
-        const text = pdfContent; // Using the extracted text from earlier
-
-      pythonProcess.on("close", async (code) => {
-        if (code !== 0) {
-          console.error("PDF processing failed:", errorData);
-          res.status(500).json({
-            error: "Failed to process PDF",
-            details: errorData,
-          });
-          return;
-        }
-
-        try {
-          console.log("Raw QA data:", qaData);
-          const text = qaData; // Assuming qaData contains the extracted text from the PDF
-          const model = req.body.model || "opensource";
-          const apiKey = req.body.apiKey;
-          const qaItems = await generateQAPairs(text, model, apiKey);
-
-
-          // Store Q&A pairs
-          const storedItems = await storage.createQAItems(
-            qaItems.map((item: any) => ({
-              configId: 1, // TODO: Get from session
-              documentId: doc.id,
-              question: item.question,
-              answer: item.answer,
-              isGenerated: true,
-            }))
-          );
-
-          console.log(`Generated ${storedItems.length} QA pairs`);
-
-          // Cleanup uploaded file
-          fs.unlinkSync(req.file!.path);
-
-          res.json({
-            document: doc,
-            qaItems: storedItems,
-          });
-        } catch (err) {
-          console.error("Failed to process QA items:", err);
-          res.status(500).json({ error: "Failed to process QA items" });
-        }
+      }).then((result) => {
+        res.json(result);
+      }).catch((err) => {
+        console.error("Failed to process document:", err);
+        res.status(500).json({ 
+          error: "Failed to process document",
+          details: err instanceof Error ? err.message : String(err)
+        });
       });
     } catch (err) {
       console.error("Upload error:", err);
