@@ -2,9 +2,6 @@ import { useWizardStore } from "@/store/wizardStore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-import { toast } from "@/hooks/use-toast";
 
 export default function CompanyInfo() {
   const { companyName, updateConfig, setAppId } = useWizardStore();
