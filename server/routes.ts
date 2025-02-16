@@ -5,6 +5,7 @@ import multer from "multer";
 import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
+import CryptoJS from 'crypto-js';
 
 // Configure multer for file upload
 const upload = multer({
@@ -20,6 +21,14 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
 });
+
+// Add decryption function
+function decryptApiKey(encryptedKey: string): string {
+  // Using a static salt for simplicity. In production, this should be a server-side secret
+  const salt = "AI_CHATBOT_SALT";
+  const bytes = CryptoJS.AES.decrypt(encryptedKey, salt);
+  return bytes.toString(CryptoJS.enc.Utf8);
+}
 
 // Extract text from PDF using the Python service
 async function extractTextFromPDF(filePath: string): Promise<string> {
@@ -196,8 +205,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Generate QA pairs from the extracted text
         const model = req.body.model || "opensource";
-        const apiKey = req.body.apiKey;
+        let apiKey = req.body.apiKey;
         const context = req.body.context;
+
+        if (model === "openai" && !context?.trim()) {
+          throw new Error("Context is required for OpenAI model");
+        }
+
+        if (apiKey) {
+          // Decrypt the API key
+          apiKey = decryptApiKey(apiKey);
+        }
 
         console.log(`Generating QA pairs using ${model} model`);
         const qaItems = await generateQAPairs(extractedText, model, apiKey, context);

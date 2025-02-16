@@ -8,6 +8,7 @@ import { useWizardStore } from "@/store/wizardStore";
 import { useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import CryptoJS from 'crypto-js';
 
 interface FileWithPath extends File {
   path?: string;
@@ -21,15 +22,30 @@ export default function DocumentUpload() {
   const [apiKey, setApiKey] = useState("");
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [context, setContext] = useState("");
+  const [contextError, setContextError] = useState("");
+
+  // Function to encrypt API key
+  const encryptApiKey = (key: string) => {
+    // Using a static salt for simplicity. In production, this should be a server-side secret
+    const salt = "AI_CHATBOT_SALT";
+    return CryptoJS.AES.encrypt(key, salt).toString();
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
+      if (!context.trim() && selectedModel === "openai") {
+        setContextError("Please provide context about what information you want to extract from the document");
+        throw new Error("Context is required");
+      }
+
       const formData = new FormData();
       formData.append("file", file);
       formData.append("model", selectedModel);
       formData.append("context", context);
       if (selectedModel !== "opensource") {
-        formData.append("apiKey", apiKey);
+        // Encrypt API key before sending
+        const encryptedKey = encryptApiKey(apiKey);
+        formData.append("apiKey", encryptedKey);
       }
 
       const response = await fetch('/api/documents/upload', {
@@ -97,13 +113,24 @@ export default function DocumentUpload() {
 
   const handleUpload = async () => {
     if (!file) return;
-    if (selectedModel !== "opensource" && !apiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please enter the API key for the selected model",
-        variant: "destructive",
-      });
-      return;
+    if (selectedModel !== "opensource") {
+      if (!apiKey) {
+        toast({
+          title: "API Key Required",
+          description: "Please enter the API key for the selected model",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (!context.trim()) {
+        setContextError("Please provide context about what information you want to extract from the document");
+        toast({
+          title: "Context Required",
+          description: "Please provide context for better Q&A generation",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     uploadMutation.mutate(file);
   };
@@ -120,13 +147,19 @@ export default function DocumentUpload() {
       <Card className="p-6">
         <div className="space-y-6">
           <div className="space-y-4">
-            <Label>Context (Optional)</Label>
+            <Label>
+              Context {selectedModel === "openai" && <span className="text-red-500">*</span>}
+            </Label>
             <Textarea
               placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a resume, I want to extract information about work experience, skills, and projects.'"
               value={context}
-              onChange={(e) => setContext(e.target.value)}
-              className="h-24"
+              onChange={(e) => {
+                setContext(e.target.value);
+                setContextError("");
+              }}
+              className={`h-24 ${contextError ? "border-red-500" : ""}`}
             />
+            {contextError && <p className="text-sm text-red-500">{contextError}</p>}
           </div>
 
           <div className="flex gap-4 justify-center">
