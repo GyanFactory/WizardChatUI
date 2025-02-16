@@ -7,12 +7,14 @@ import WizardPage from "@/pages/wizard";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
 import AuthPage from "@/pages/auth";
+import ProfilePage from "@/pages/profile";
 
 function Router() {
   return (
     <Switch>
       <Route path="/auth" component={AuthPage} />
       <Route path="/" component={WizardPage} />
+      <Route path="/profile" component={ProfilePage} />
       <Route component={NotFound} />
     </Switch>
   );

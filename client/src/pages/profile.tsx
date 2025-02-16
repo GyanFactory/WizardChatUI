@@ -20,10 +20,21 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Key } from "lucide-react";
+import { Loader2, Key, Trash2 } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ChatbotConfig } from "@shared/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(6, "Current password must be at least 6 characters"),
@@ -69,6 +80,33 @@ export default function ProfilePage() {
         description: "Password changed successfully",
       });
       form.reset();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteChatbotMutation = useMutation({
+    mutationFn: async (configId: number) => {
+      const response = await apiRequest(`/api/chatbot-configs/${configId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete project");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chatbot-configs"] });
+      toast({
+        title: "Success",
+        description: "Project deleted successfully",
+      });
     },
     onError: (error: Error) => {
       toast({
@@ -211,11 +249,44 @@ export default function ProfilePage() {
                   >
                     <div>
                       <h3 className="font-medium">{config.companyName}</h3>
-                      <p className="text-sm text-muted-foreground">Created on {new Date(config.createdAt).toLocaleDateString()}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Created on {config.createdAt ? new Date(config.createdAt).toLocaleDateString() : 'N/A'}
+                      </p>
                     </div>
-                    <Button variant="outline" asChild>
-                      <a href={`/wizard?config=${config.id}`}>Edit</a>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" asChild>
+                        <a href={`/wizard?config=${config.id}`}>Edit</a>
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete your
+                              project and all associated data.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteChatbotMutation.mutate(config.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              {deleteChatbotMutation.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                "Delete"
+                              )}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
                 ))}
               </div>

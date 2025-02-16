@@ -23,6 +23,7 @@ export const chatbotConfig = pgTable("chatbot_config", {
   bubbleStyle: text("bubble_style").notNull(),
   backgroundColor: text("background_color").notNull(),
   buttonStyle: text("button_style").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const documents = pgTable("documents", {
@@ -55,7 +56,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 
 export const insertChatbotConfigSchema = createInsertSchema(chatbotConfig).omit({ 
-  id: true 
+  id: true,
+  createdAt: true
 });
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({ 
