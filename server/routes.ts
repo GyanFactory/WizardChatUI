@@ -171,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("No file uploaded");
       }
 
-      // Process PDF with Python service first to get content
+      // Process PDF with Python service
       const pythonProcess = spawn("python", [
         path.join(process.cwd(), "server/services/pdf_processor.py"),
         req.file.path,
@@ -209,23 +209,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("Created document:", doc);
 
-      // Process PDF with Python service (this part remains unchanged)
-      const pythonProcess = spawn("python", [
-        path.join(process.cwd(), "server/services/pdf_processor.py"),
-        req.file.path,
-      ]);
-
-      let qaData = "";
-      let errorData = "";
-
-      pythonProcess.stdout.on("data", (data) => {
-        qaData += data.toString();
-      });
-
-      pythonProcess.stderr.on("data", (data) => {
-        errorData += data.toString();
-        console.error(`Python Error: ${data}`);
-      });
+      try {
+        console.log("Raw content:", pdfContent);
+        const text = pdfContent; // Using the extracted text from earlier
 
       pythonProcess.on("close", async (code) => {
         if (code !== 0) {
