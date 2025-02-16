@@ -18,23 +18,25 @@ export default function ChatPreview() {
     buttonStyle,
   } = useWizardStore();
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(true); // Start with chat window open
 
   return (
     <div className="relative w-full h-[600px] border rounded-lg bg-gray-100 p-4">
       <div className="absolute bottom-4 right-4">
-        {/* Chat Widget Button */}
-        <Button
-          className="ml-auto flex items-center gap-2 mb-4"
-          onClick={() => setIsOpen(!isOpen)}
-          style={{
-            backgroundColor: primaryColor,
-            borderRadius: bubbleStyle === 'rounded' ? '9999px' : '0.5rem'
-          }}
-        >
-          <MessageCircle className="w-4 h-4" />
-          <span>Chat with us</span>
-        </Button>
+        {/* Chat Widget Button - Only show when chat is closed */}
+        {!isOpen && (
+          <Button
+            className="ml-auto flex items-center gap-2 mb-4"
+            onClick={() => setIsOpen(true)}
+            style={{
+              backgroundColor: primaryColor,
+              borderRadius: bubbleStyle === 'rounded' ? '9999px' : '0.5rem'
+            }}
+          >
+            <MessageCircle className="w-4 h-4" />
+            <span>Chat with us</span>
+          </Button>
+        )}
 
         {/* Chat Window */}
         {isOpen && (

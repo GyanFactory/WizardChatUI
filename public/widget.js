@@ -28,6 +28,9 @@
 
         // Initialize event listeners
         this.initializeEventListeners();
+
+        // Open chat window by default
+        this.toggleChatWindow(true);
       } catch (error) {
         console.error('Failed to initialize chat widget:', error);
       }
@@ -53,7 +56,7 @@
           padding: 12px 24px;
           border-radius: ${this.config.bubbleStyle === 'rounded' ? '9999px' : '8px'};
           cursor: pointer;
-          display: flex;
+          display: none; /* Hidden by default */
           align-items: center;
           gap: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -72,7 +75,7 @@
           background-color: ${this.config.backgroundColor};
           border-radius: 8px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          display: none;
+          display: block; /* Visible by default */
           max-height: calc(100vh - 120px);
           min-height: 400px;
         }
@@ -171,7 +174,7 @@
       this.container = document.createElement('div');
       this.container.className = 'ai-chat-widget';
 
-      // Create toggle button
+      // Create toggle button (initially hidden)
       const button = document.createElement('button');
       button.className = 'ai-chat-button';
       button.innerHTML = `
@@ -181,7 +184,7 @@
         Chat with us
       `;
 
-      // Create chat window
+      // Create chat window (initially visible)
       const chatWindow = document.createElement('div');
       chatWindow.className = 'ai-chat-window';
       chatWindow.innerHTML = `
@@ -213,6 +216,19 @@
 
       // Add welcome message
       this.addMessage(this.config.welcomeMessage, 'bot');
+    }
+
+    toggleChatWindow(show) {
+      const chatWindow = this.container.querySelector('.ai-chat-window');
+      const chatButton = this.container.querySelector('.ai-chat-button');
+
+      chatWindow.style.display = show ? 'block' : 'none';
+      chatButton.style.display = show ? 'none' : 'flex';
+
+      if (show) {
+        const input = this.container.querySelector('.ai-chat-textbox');
+        input?.focus();
+      }
     }
 
     connectWebSocket() {
@@ -253,20 +269,16 @@
     initializeEventListeners() {
       const button = this.container.querySelector('.ai-chat-button');
       const closeBtn = this.container.querySelector('.ai-chat-close');
-      const chatWindow = this.container.querySelector('.ai-chat-window');
       const input = this.container.querySelector('.ai-chat-textbox');
       const sendBtn = this.container.querySelector('.ai-chat-send');
 
       // Toggle chat window
       button.addEventListener('click', () => {
-        chatWindow.style.display = chatWindow.style.display === 'none' ? 'block' : 'none';
-        if (chatWindow.style.display === 'block') {
-          input.focus();
-        }
+        this.toggleChatWindow(true);
       });
 
       closeBtn.addEventListener('click', () => {
-        chatWindow.style.display = 'none';
+        this.toggleChatWindow(false);
       });
 
       // Send message
