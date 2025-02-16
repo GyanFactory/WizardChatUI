@@ -74,14 +74,25 @@ def generate_qa_pairs(chunks: List[str]) -> List[Dict[str, str]]:
                 continue
                 
             # Generate contextual questions
-            if re.search(r'(?:how to|steps to|method for|procedure for)', sentence, re.IGNORECASE):
-                question = "How do you " + re.sub(r'^(?:This is |Here is |These are |The |A |An )', '', sentence.lower()) + "?"
-            elif re.search(r'(?:means|refers to|is defined as|consists of)', sentence, re.IGNORECASE):
-                question = "What " + sentence.split()[0].lower() + "?"
-            elif re.search(r'(?:must|should|need to|required to)', sentence, re.IGNORECASE):
-                question = "What is required for " + re.sub(r'^(?:You |The |A |An )', '', sentence.lower()) + "?"
+            lower_sentence = sentence.lower()
+            
+            # Handle instructional content
+            if re.search(r'(?:press|click|select|choose|tap)\s+this\s+(?:button|option|menu)', lower_sentence, re.IGNORECASE):
+                question = "What is the purpose of this " + re.search(r'(?:button|option|menu)', sentence, re.IGNORECASE).group(0) + "?"
+            elif re.search(r'(?:how to|steps to|method for|procedure for)', lower_sentence):
+                question = "How do you " + re.sub(r'^.*?(?:how to|steps to|method for|procedure for)\s+', '', lower_sentence) + "?"
+            elif re.search(r'(?:means|refers to|is defined as|consists of)', lower_sentence):
+                match = re.match(r'^([^,.]+)', sentence)
+                term = match.group(1) if match else sentence.split()[0]
+                question = "What is " + term.strip() + "?"
+            elif re.search(r'(?:must|should|need to|required to)', lower_sentence):
+                # Remove any leading context
+                clean_sentence = re.sub(r'^.*?(?=must|should|need to|required to)', '', lower_sentence)
+                question = "What is required for " + clean_sentence + "?"
             else:
-                question = "Could you explain " + re.sub(r'^(?:This |The |A |An )', '', sentence.lower()) + "?"
+                # For general statements, create a more natural question
+                clean_sentence = re.sub(r'^(?:this |the |a |an |in order to |to |)", '', lower_sentence)
+                question = "What is the purpose of " + clean_sentence + "?"
                 
             qa_pairs.append({"question": question, "answer": sentence})
 
