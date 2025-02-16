@@ -171,11 +171,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new Error("No file uploaded");
       }
 
-      // Store document in storage
+      // Process PDF with Python service first to get content
+      const pythonProcess = spawn("python", [
+        path.join(process.cwd(), "server/services/pdf_processor.py"),
+        req.file.path,
+      ]);
+
+      let pdfContent = "";
+      let errorData = "";
+
+      pythonProcess.stdout.on("data", (data) => {
+        pdfContent += data.toString();
+      });
+
+      pythonProcess.stderr.on("data", (data) => {
+        errorData += data.toString();
+        console.error(`Python Error: ${data}`);
+      });
+
+      await new Promise((resolve, reject) => {
+        pythonProcess.on("close", (code) => {
+          if (code !== 0) {
+            reject(new Error(`PDF processing failed: ${errorData}`));
+          } else {
+            resolve(true);
+          }
+        });
+      });
+
+      // Store document in storage with content
       const doc = await storage.createDocument({
         configId: 1, // TODO: Get from session
         filename: req.file.originalname,
-        content: "", // Will be updated after processing
+        content: pdfContent,
         createdAt: new Date().toISOString(),
       });
 

@@ -207,15 +207,10 @@ def main(pdf_path: str):
     try:
         # Extract text
         text = extract_text_from_pdf(pdf_path)
-
-        # Split into chunks
-        chunks = split_text_into_chunks(text)
-
-        # Generate Q&A pairs
-        qa_pairs = generate_qa_pairs(chunks)
-
-        # Output as JSON
-        print(json.dumps(qa_pairs))
+        
+        # Just return the extracted text
+        print(text)
+        return
 
     except Exception as e:
         print(json.dumps({"error": str(e)}), file=sys.stderr)
