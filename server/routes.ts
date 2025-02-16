@@ -60,31 +60,40 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
     const qa_pairs = [];
     
     for (const chunk of chunks) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [
-            {
-              role: "system",
-              content: "Generate a relevant question and detailed answer pair from the given text."
-            },
-            {
-              role: "user",
-              content: chunk
-            }
-          ],
-          temperature: 0.7
-        })
-      });
+      try {
+        // Add delay between requests to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [
+              {
+                role: "system",
+                content: "Generate a relevant question and detailed answer pair from the given text."
+              },
+              {
+                role: "user",
+                content: chunk
+              }
+            ],
+            temperature: 0.7
+          })
+        });
 
-      if (!response.ok) {
-        throw new Error(`OpenAI API error: ${response.statusText}`);
-      }
+        if (!response.ok) {
+          if (response.status === 429) {
+            // Rate limit hit - wait longer and retry
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            continue;
+          }
+          throw new Error(`OpenAI API error: ${response.statusText}`);
+        }
 
       const result = await response.json();
       const content = result.choices[0].message.content;
