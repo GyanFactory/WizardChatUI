@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/form";
 import { useAuth } from "@/hooks/use-auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2 } from "lucide-react";
 
 interface AuthFormProps {
   onSuccess: () => void;
@@ -37,35 +38,50 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   });
 
   const onSubmit = async (values: any) => {
-    if (mode === "register") {
-      if (values.password !== values.confirmPassword) {
-        form.setError("confirmPassword", {
-          message: "Passwords do not match",
-        });
-        return;
+    try {
+      if (mode === "register") {
+        if (values.password !== values.confirmPassword) {
+          form.setError("confirmPassword", {
+            message: "Passwords do not match",
+          });
+          return;
+        }
+        await registerMutation.mutateAsync(
+          { email: values.email, password: values.password },
+          {
+            onSuccess: () => {
+              form.reset();
+              onSuccess();
+            },
+          },
+        );
+      } else {
+        await loginMutation.mutateAsync(
+          { email: values.email, password: values.password },
+          {
+            onSuccess: () => {
+              form.reset();
+              onSuccess();
+            },
+          },
+        );
       }
-      await registerMutation.mutateAsync(
-        { email: values.email, password: values.password },
-        {
-          onSuccess: () => {
-            onSuccess();
-          },
-        },
-      );
-    } else {
-      await loginMutation.mutateAsync(
-        { email: values.email, password: values.password },
-        {
-          onSuccess: () => {
-            onSuccess();
-          },
-        },
-      );
+    } catch (error) {
+      // Error is already handled by the mutation
+      form.setValue("password", "");
+      if (mode === "register") {
+        form.setValue("confirmPassword", "");
+      }
     }
   };
 
+  const handleModeChange = (newMode: string) => {
+    setMode(newMode as "login" | "register");
+    form.reset();
+  };
+
   return (
-    <Tabs value={mode} onValueChange={(v) => setMode(v as "login" | "register")}>
+    <Tabs value={mode} onValueChange={handleModeChange}>
       <TabsList className="grid w-full grid-cols-2">
         <TabsTrigger value="login">Login</TabsTrigger>
         <TabsTrigger value="register">Register</TabsTrigger>
@@ -80,7 +96,11 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter your email" {...field} />
+                  <Input 
+                    placeholder="Enter your email" 
+                    {...field} 
+                    disabled={loginMutation.isPending || registerMutation.isPending}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -98,6 +118,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                     type="password"
                     placeholder="Enter your password"
                     {...field}
+                    disabled={loginMutation.isPending || registerMutation.isPending}
                   />
                 </FormControl>
                 <FormMessage />
@@ -117,6 +138,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                       type="password"
                       placeholder="Confirm your password"
                       {...field}
+                      disabled={loginMutation.isPending || registerMutation.isPending}
                     />
                   </FormControl>
                   <FormMessage />
@@ -130,6 +152,9 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
             className="w-full"
             disabled={loginMutation.isPending || registerMutation.isPending}
           >
+            {(loginMutation.isPending || registerMutation.isPending) && (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            )}
             {mode === "login" ? "Login" : "Register"}
           </Button>
         </form>
