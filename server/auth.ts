@@ -55,27 +55,46 @@ export function setupAuth(app: Express) {
       { usernameField: 'email' },
       async (email, password, done) => {
         try {
+          console.log('Attempting login for email:', email);
           const user = await storage.getUserByEmail(email);
-          if (!user || !(await comparePasswords(password, user.password))) {
+          console.log('Found user:', user ? 'yes' : 'no');
+
+          if (!user) {
             return done(null, false, { message: "Invalid credentials" });
           }
+
+          const isPasswordValid = await comparePasswords(password, user.password);
+          console.log('Password valid:', isPasswordValid ? 'yes' : 'no');
+
+          if (!isPasswordValid) {
+            return done(null, false, { message: "Invalid credentials" });
+          }
+
           if (!user.isVerified) {
             return done(null, false, { message: "Please verify your email first" });
           }
+
           return done(null, user);
         } catch (error) {
+          console.error('Login error:', error);
           return done(error);
         }
       }
     )
   );
 
-  passport.serializeUser((user, done) => done(null, user.id));
+  passport.serializeUser((user, done) => {
+    console.log('Serializing user:', user.id);
+    done(null, user.id);
+  });
+
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log('Deserializing user:', id);
       const user = await storage.getUser(id);
       done(null, user);
     } catch (error) {
+      console.error('Deserialization error:', error);
       done(error);
     }
   });
@@ -137,26 +156,33 @@ export function setupAuth(app: Express) {
   }));
 
   app.post("/api/login", (req, res, next) => {
+    console.log('Login attempt:', req.body.email);
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
+        console.error('Authentication error:', err);
         return res.status(500).json({ message: "Authentication failed" });
       }
       if (!user) {
+        console.log('Authentication failed:', info.message);
         return res.status(401).json({ message: info.message || "Invalid credentials" });
       }
 
       req.login(user, (err) => {
         if (err) {
+          console.error('Login error:', err);
           return res.status(500).json({ message: "Login failed" });
         }
+        console.log('Login successful for user:', user.email);
         res.json(user);
       });
     })(req, res, next);
   });
 
   app.post("/api/logout", (req, res) => {
+    console.log('Logout attempt for user:', req.user?.email);
     req.logout((err) => {
       if (err) {
+        console.error('Logout error:', err);
         return res.status(500).json({ message: "Logout failed" });
       }
       res.json({ message: "Logged out successfully" });
@@ -179,18 +205,10 @@ export function setupAuth(app: Express) {
   }));
 
   app.get("/api/user", (req, res) => {
+    console.log('Get user request, authenticated:', req.isAuthenticated(), 'user:', req.user?.email);
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
     }
     res.json(req.user);
-  });
-
-  // Error handling middleware
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error('API Error:', err);
-    res.status(500).json({ 
-      message: "An unexpected error occurred",
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
-    });
   });
 }
