@@ -26,10 +26,8 @@ export default function QAManagement() {
   const queryClient = useQueryClient();
 
   // Fetch QA items
-  const { appId } = useWizardStore();
-const { data: qaItems = [], isLoading } = useQuery({
-    queryKey: ['/api/qa-items', appId],
-    queryFn: () => apiRequest(`/api/qa-items/${appId}`),
+  const { data: qaItems = [], isLoading } = useQuery({
+    queryKey: ['/api/qa-items'],
   });
 
   // Add new QA item
