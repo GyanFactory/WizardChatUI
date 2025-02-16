@@ -15,7 +15,7 @@ interface FileWithPath extends File {
 export default function DocumentUpload() {
   const [file, setFile] = useState<FileWithPath | null>(null);
   const { toast } = useToast();
-  const { setStep } = useWizardStore();
+  const { setStep, setCurrentDocument } = useWizardStore();
   const [selectedModel, setSelectedModel] = useState("opensource");
   const [apiKey, setApiKey] = useState("");
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
@@ -42,6 +42,8 @@ export default function DocumentUpload() {
       return response.json();
     },
     onSuccess: (data) => {
+      // Store the document ID in wizard state
+      setCurrentDocument(data.document.id);
       toast({
         title: "Success!",
         description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
@@ -84,11 +86,22 @@ export default function DocumentUpload() {
     setSelectedModel(model);
     if (model !== "opensource") {
       setShowApiKeyDialog(true);
+    } else {
+      setApiKey("");
+      setShowApiKeyDialog(false);
     }
   };
 
   const handleUpload = async () => {
     if (!file) return;
+    if (selectedModel !== "opensource" && !apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please enter the API key for the selected model",
+        variant: "destructive",
+      });
+      return;
+    }
     uploadMutation.mutate(file);
   };
 
@@ -115,12 +128,6 @@ export default function DocumentUpload() {
               onClick={() => handleModelSelect("openai")}
             >
               OpenAI
-            </Button>
-            <Button
-              variant={selectedModel === "deepseek" ? "default" : "outline"}
-              onClick={() => handleModelSelect("deepseek")}
-            >
-              DeepSeek
             </Button>
           </div>
 

@@ -279,6 +279,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add new endpoint to get QA items for a document
+  app.get("/api/documents/:documentId/qa-items", async (req, res) => {
+    try {
+      const documentId = parseInt(req.params.documentId);
+      const qaItems = await storage.getQAItemsByDocument(documentId);
+      res.json(qaItems);
+    } catch (err) {
+      console.error("Failed to fetch QA items:", err);
+      res.status(500).json({ error: "Failed to fetch QA items" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -11,12 +11,15 @@ interface WizardState {
   bubbleStyle: string;
   backgroundColor: string;
   buttonStyle: string;
+  currentDocumentId: number | null;
   qaItems: Array<{ question: string; answer: string }>;
   setStep: (step: number) => void;
   updateConfig: (config: Partial<WizardState>) => void;
+  setCurrentDocument: (documentId: number) => void;
   addQAItem: (item: { question: string; answer: string }) => void;
   updateQAItem: (index: number, item: { question: string; answer: string }) => void;
   removeQAItem: (index: number) => void;
+  setQAItems: (items: Array<{ question: string; answer: string }>) => void;
 }
 
 export const defaultAvatars = [
@@ -38,9 +41,11 @@ export const useWizardStore = create<WizardState>((set) => ({
   bubbleStyle: 'rounded',
   backgroundColor: '#ffffff',
   buttonStyle: 'solid',
+  currentDocumentId: null,
   qaItems: [],
   setStep: (step) => set({ currentStep: step }),
   updateConfig: (config) => set((state) => ({ ...state, ...config })),
+  setCurrentDocument: (documentId) => set({ currentDocumentId: documentId }),
   addQAItem: (item) => set((state) => ({ 
     qaItems: [...state.qaItems, item] 
   })),
@@ -50,4 +55,5 @@ export const useWizardStore = create<WizardState>((set) => ({
   removeQAItem: (index) => set((state) => ({
     qaItems: state.qaItems.filter((_, i) => i !== index)
   })),
+  setQAItems: (items) => set({ qaItems: items }),
 }));

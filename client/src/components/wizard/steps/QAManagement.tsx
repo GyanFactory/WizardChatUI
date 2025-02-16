@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Edit2, Save, X } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
@@ -17,6 +17,7 @@ interface QAItem {
 }
 
 export default function QAManagement() {
+  const { currentDocumentId, setQAItems } = useWizardStore();
   const [newQuestion, setNewQuestion] = useState("");
   const [newAnswer, setNewAnswer] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -25,19 +26,37 @@ export default function QAManagement() {
 
   const queryClient = useQueryClient();
 
-  // Fetch QA items
+  // Fetch QA items for the current document
   const { data: qaItems = [], isLoading } = useQuery({
-    queryKey: ['/api/qa-items'],
+    queryKey: ['/api/documents', currentDocumentId, 'qa-items'],
+    queryFn: async () => {
+      if (!currentDocumentId) return [];
+      const response = await fetch(`/api/documents/${currentDocumentId}/qa-items`);
+      if (!response.ok) throw new Error('Failed to fetch QA items');
+      return response.json();
+    },
+    enabled: !!currentDocumentId,
   });
+
+  // Update wizard store when QA items change
+  useEffect(() => {
+    setQAItems(qaItems);
+  }, [qaItems, setQAItems]);
 
   // Add new QA item
   const addMutation = useMutation({
     mutationFn: async (item: { question: string; answer: string }) => {
-      const res = await apiRequest('POST', '/api/qa-items', item);
+      const res = await apiRequest('/api/qa-items', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...item,
+          documentId: currentDocumentId,
+        }),
+      });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/qa-items'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', currentDocumentId, 'qa-items'] });
       setNewQuestion("");
       setNewAnswer("");
       toast({
@@ -57,11 +76,14 @@ export default function QAManagement() {
   // Update QA item
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<QAItem> }) => {
-      const res = await apiRequest('PATCH', `/api/qa-items/${id}`, data);
+      const res = await apiRequest(`/api/qa-items/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/qa-items'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', currentDocumentId, 'qa-items'] });
       setEditingId(null);
       toast({
         title: "Success",
@@ -80,10 +102,12 @@ export default function QAManagement() {
   // Delete QA item
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest('DELETE', `/api/qa-items/${id}`);
+      await apiRequest(`/api/qa-items/${id}`, {
+        method: 'DELETE',
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/qa-items'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents', currentDocumentId, 'qa-items'] });
       toast({
         title: "Success",
         description: "Q&A pair deleted successfully",
@@ -124,6 +148,14 @@ export default function QAManagement() {
     deleteMutation.mutate(id);
   };
 
+  if (!currentDocumentId) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        Please upload a document in step 2 first.
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -137,6 +169,10 @@ export default function QAManagement() {
         <div className="space-y-6">
           {isLoading ? (
             <div className="text-center py-4">Loading Q&A pairs...</div>
+          ) : qaItems.length === 0 ? (
+            <div className="text-center py-4 text-gray-500">
+              No Q&A pairs available. Add some below or upload a document to generate them automatically.
+            </div>
           ) : (
             qaItems.map((item: QAItem) => (
               <div
@@ -222,7 +258,7 @@ export default function QAManagement() {
               />
             </div>
             <Button 
-              onClick={handleAdd} 
+              onClick={handleAdd}
               disabled={!newQuestion || !newAnswer || addMutation.isPending}
             >
               <Plus className="w-4 h-4 mr-2" />
