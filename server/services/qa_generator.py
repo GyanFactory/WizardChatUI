@@ -1,53 +1,48 @@
 import sys
 import json
-from transformers import pipeline
-import nltk
-from nltk.tokenize import sent_tokenize
+import re
 
 def main():
     try:
         # Get input text from command line argument
         text = sys.argv[1]
-        
-        # Download necessary NLTK data
-        try:
-            nltk.data.find('tokenizers/punkt')
-        except LookupError:
-            nltk.download('punkt')
 
-        # Initialize QA pipeline
-        qa_pipeline = pipeline(
-            "question-generation",
-            model="microsoft/git-base-qa",
-            device=-1  # Use CPU
-        )
-
-        # Split text into sentences
-        sentences = sent_tokenize(text)
-        
-        # Generate QA pairs
+        # Split text into paragraphs and sentences
+        paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
         qa_pairs = []
-        for sentence in sentences:
-            if len(sentence.split()) < 5:  # Skip very short sentences
+
+        for paragraph in paragraphs:
+            # Skip short paragraphs
+            if len(paragraph.split()) < 10:
                 continue
-                
-            try:
-                # Generate question from the sentence
-                result = qa_pipeline({
-                    "question_generation": {
-                        "text": sentence,
-                    }
-                })
-                
-                if result and 'question' in result:
+
+            # Split into sentences (simple approach)
+            sentences = [s.strip() for s in re.split(r'[.!?]+', paragraph) if s.strip()]
+
+            for sentence in sentences:
+                if len(sentence.split()) < 5:  # Skip very short sentences
+                    continue
+
+                try:
+                    # Create simple questions based on sentence structure
+                    words = sentence.split()
+
+                    # Try to identify key information
+                    if any(word.lower() in ['is', 'are', 'was', 'were', 'will', 'has', 'have'] for word in words):
+                        # Create a yes/no question
+                        question = ' '.join(words) + '?'
+                    else:
+                        # Create a "what" question
+                        question = 'What is meant by: ' + sentence
+
                     qa_pairs.append({
-                        'question': result['question'],
-                        'answer': sentence,
-                        'context': sentence
+                        'question': question.strip(),
+                        'answer': sentence.strip(),
+                        'context': paragraph
                     })
-            except Exception as e:
-                print(f"Error processing sentence: {str(e)}", file=sys.stderr)
-                continue
+                except Exception as e:
+                    print(f"Error processing sentence: {str(e)}", file=sys.stderr)
+                    continue
 
         # Print JSON output
         print(json.dumps(qa_pairs))

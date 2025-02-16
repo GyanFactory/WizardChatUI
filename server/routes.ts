@@ -6,17 +6,10 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 
-// Ensure uploads directory exists
-const uploadsDir = "uploads";
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
-
 // Configure multer for file upload
 const upload = multer({
-  dest: uploadsDir,
+  dest: "uploads",
   fileFilter: (_req, file, cb) => {
-    console.log("Received file:", file.originalname, "type:", file.mimetype);
     if (file.mimetype !== "application/pdf") {
       cb(new Error("Only PDF files are allowed"));
       return;
@@ -28,14 +21,14 @@ const upload = multer({
   },
 });
 
-async function generateQAPairs(filePath: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
-  // First extract text from PDF
-  const pythonProcess = spawn("python", [
-    path.join(process.cwd(), "server/services/pdf_processor.py"),
-    filePath
-  ]);
+// Extract text from PDF using the Python service
+async function extractTextFromPDF(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pythonProcess = spawn("python", [
+      path.join(process.cwd(), "server/services/pdf_processor.py"),
+      filePath
+    ]);
 
-  const extractedText = await new Promise<string>((resolve, reject) => {
     let output = '';
     let errorOutput = '';
 
@@ -45,7 +38,7 @@ async function generateQAPairs(filePath: string, model: string = "opensource", a
 
     pythonProcess.stderr.on('data', (data) => {
       errorOutput += data;
-      console.error(`Python Error: ${data}`);
+      console.error(`PDF Processor Error: ${data}`);
     });
 
     pythonProcess.on('close', (code) => {
@@ -56,17 +49,18 @@ async function generateQAPairs(filePath: string, model: string = "opensource", a
       }
     });
   });
+}
 
-  console.log("Extracted text from PDF:", extractedText.substring(0, 200) + "...");
-
+// Generate QA pairs using either opensource or OpenAI approach
+async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string): Promise<any[]> {
   if (model === "opensource") {
-    // For opensource model, we'll use the same Python script but with a different mode
-    const qaProcess = spawn("python", [
-      path.join(process.cwd(), "server/services/qa_generator.py"),
-      extractedText
-    ]);
-
+    // Use simple rule-based QA generation
     return new Promise((resolve, reject) => {
+      const qaProcess = spawn("python", [
+        path.join(process.cwd(), "server/services/qa_generator.py"),
+        text
+      ]);
+
       let output = '';
       let errorOutput = '';
 
@@ -92,19 +86,24 @@ async function generateQAPairs(filePath: string, model: string = "opensource", a
         }
       });
     });
-
   } else if (model === "openai") {
-    if (!apiKey) throw new Error("OpenAI API key is required");
+    if (!apiKey) {
+      throw new Error("OpenAI API key is required");
+    }
 
-    const chunks = extractedText.split('\n\n').filter(chunk => chunk.trim().length > 30);
+    // Process text in smaller chunks
+    const chunks = text.split(/\n\s*\n/).filter(chunk => {
+      const trimmed = chunk.trim();
+      return trimmed.length >= 50 && trimmed.length <= 1500; // Reasonable chunk sizes
+    });
+
     console.log(`Processing ${chunks.length} chunks with OpenAI`);
     const qa_pairs = [];
 
     for (const chunk of chunks) {
       try {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Rate limit delay
-
-        console.log("Processing chunk:", chunk.substring(0, 100) + "...");
+        // Rate limiting delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -117,41 +116,43 @@ async function generateQAPairs(filePath: string, model: string = "opensource", a
             messages: [
               {
                 role: "system",
-                content: "Generate a relevant question and detailed answer pair from the given text. Format your response exactly as 'Q: [question]\nA: [answer]'"
+                content: "Generate a single, focused question and comprehensive answer pair from the given text. Format your response exactly as: 'Q: [question]\nA: [answer]'"
               },
               {
                 role: "user",
                 content: chunk
               }
             ],
-            temperature: 0.7
+            temperature: 0.7,
+            max_tokens: 500
           })
         });
 
         if (!response.ok) {
-          console.error("OpenAI API error:", response.status, await response.text());
+          const errorText = await response.text();
+          console.error("OpenAI API error:", response.status, errorText);
+
           if (response.status === 429) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(resolve, 5000));
             continue;
           }
-          throw new Error(`OpenAI API error: ${response.statusText}`);
+          throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
         }
 
         const result = await response.json();
         const content = result.choices[0].message.content;
-        console.log("OpenAI response:", content);
 
         if (content.includes('Q:') && content.includes('A:')) {
-          const [question, answer] = content.split('\nA:').map(str => str.replace('Q:', '').trim());
+          const [question, answer] = content.split('\nA:');
           qa_pairs.push({
-            question,
-            answer,
+            question: question.replace('Q:', '').trim(),
+            answer: answer.trim(),
             context: chunk
           });
+          console.log("Generated QA pair:", qa_pairs[qa_pairs.length - 1]);
         }
       } catch (error) {
         console.error("Error processing chunk:", error);
-        continue;
       }
     }
 
@@ -165,30 +166,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload PDF and generate Q&A pairs
   app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
     try {
-      console.log("Processing upload request", { body: req.body, file: req.file });
-
       if (!req.file) {
         throw new Error("No file uploaded");
       }
 
       try {
-        // Generate QA pairs directly from the uploaded file
+        // First extract text from PDF
+        const extractedText = await extractTextFromPDF(req.file.path);
+        console.log("Extracted text length:", extractedText.length);
+
+        if (!extractedText.trim()) {
+          throw new Error("No text could be extracted from the PDF");
+        }
+
+        // Generate QA pairs from the extracted text
         const model = req.body.model || "opensource";
         const apiKey = req.body.apiKey;
 
         console.log(`Generating QA pairs using ${model} model`);
-        const qaItems = await generateQAPairs(req.file.path, model, apiKey);
+        const qaItems = await generateQAPairs(extractedText, model, apiKey);
         console.log(`Generated ${qaItems.length} QA pairs`);
+
+        if (!qaItems.length) {
+          throw new Error("No QA pairs could be generated");
+        }
 
         // Store document in storage
         const doc = await storage.createDocument({
           configId: 1, // TODO: Get from session
           filename: req.file.originalname,
-          content: fs.readFileSync(req.file.path, 'utf-8'),
+          content: extractedText,
           createdAt: new Date().toISOString(),
         });
-
-        console.log("Stored document:", doc);
 
         // Store Q&A pairs
         const storedItems = await storage.createQAItems(
@@ -224,7 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create or update chatbot configuration
+  // Create chatbot configuration
   app.post("/api/chatbot-config", async (req, res) => {
     try {
       const config = await storage.createChatbotConfig({
