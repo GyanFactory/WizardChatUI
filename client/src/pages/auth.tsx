@@ -22,7 +22,7 @@ import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 import { Redirect } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Mail, Lock } from "lucide-react";
+import { Loader2, Mail, Lock, Bot, MessageSquare, FileText, Zap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 
@@ -210,7 +210,6 @@ export default function AuthPage() {
                                 <div className="relative">
                                   <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
                                   <Input
-                                    type="email"
                                     placeholder="Enter your email"
                                     className="pl-10"
                                     {...field}
