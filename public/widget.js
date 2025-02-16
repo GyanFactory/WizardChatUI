@@ -10,6 +10,7 @@
 
     async init() {
       try {
+        console.log('Initializing chat widget...');
         // Fetch chatbot configuration
         const response = await fetch(`/api/chatbot-config/${this.configId}`);
         if (!response.ok) throw new Error('Failed to load chatbot configuration');
@@ -38,8 +39,11 @@
           position: fixed;
           ${this.config.position === 'right' ? 'right: 20px' : 'left: 20px'};
           bottom: 20px;
-          font-family: ${this.config.fontFamily};
+          font-family: ${this.config.fontFamily}, system-ui, sans-serif;
           z-index: 999999;
+          display: flex;
+          flex-direction: column;
+          align-items: ${this.config.position === 'right' ? 'flex-end' : 'flex-start'};
         }
 
         .ai-chat-button {
@@ -53,17 +57,24 @@
           align-items: center;
           gap: 8px;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: transform 0.2s;
+        }
+
+        .ai-chat-button:hover {
+          transform: translateY(-2px);
         }
 
         .ai-chat-window {
-          position: fixed;
-          ${this.config.position === 'right' ? 'right: 20px' : 'left: 20px'};
+          position: absolute;
           bottom: 80px;
+          ${this.config.position === 'right' ? 'right: 0' : 'left: 0'};
           width: 320px;
           background-color: ${this.config.backgroundColor};
           border-radius: 8px;
           box-shadow: 0 4px 12px rgba(0,0,0,0.15);
           display: none;
+          max-height: calc(100vh - 120px);
+          min-height: 400px;
         }
 
         .ai-chat-header {
@@ -77,9 +88,10 @@
         }
 
         .ai-chat-messages {
-          height: 300px;
+          height: calc(100% - 120px);
           overflow-y: auto;
           padding: 12px;
+          background: white;
         }
 
         .ai-chat-input {
@@ -87,13 +99,22 @@
           border-top: 1px solid rgba(0,0,0,0.1);
           display: flex;
           gap: 8px;
+          background: white;
+          border-radius: 0 0 8px 8px;
         }
 
         .ai-chat-textbox {
           flex: 1;
-          padding: 8px;
+          padding: 8px 12px;
           border: 1px solid rgba(0,0,0,0.2);
           border-radius: 4px;
+          font-family: inherit;
+          resize: none;
+          outline: none;
+        }
+
+        .ai-chat-textbox:focus {
+          border-color: ${this.config.primaryColor};
         }
 
         .ai-chat-send {
@@ -103,30 +124,35 @@
           padding: 8px 16px;
           border-radius: 4px;
           cursor: pointer;
+          font-family: inherit;
         }
 
         .ai-chat-message {
-          margin-bottom: 8px;
-          max-width: 80%;
+          margin-bottom: 12px;
+          max-width: 85%;
+          display: flex;
+          flex-direction: column;
         }
 
         .ai-chat-message.bot {
-          margin-right: auto;
+          align-items: flex-start;
         }
 
         .ai-chat-message.user {
+          align-items: flex-end;
           margin-left: auto;
-          text-align: right;
         }
 
         .ai-chat-bubble {
-          display: inline-block;
-          padding: 8px 12px;
+          padding: 10px 14px;
           border-radius: ${this.config.bubbleStyle === 'rounded' ? '16px' : '4px'};
+          position: relative;
+          word-wrap: break-word;
         }
 
         .ai-chat-message.bot .ai-chat-bubble {
           background-color: #f0f0f0;
+          color: #333;
         }
 
         .ai-chat-message.user .ai-chat-bubble {
@@ -162,7 +188,7 @@
         <div class="ai-chat-header">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 32px; height: 32px; border-radius: 50%; background: white; display: flex; align-items: center; justify-content: center; color: ${this.config.primaryColor}">
-              ${this.config.avatarUrl ? `<img src="${this.config.avatarUrl}" alt="" style="width: 100%; height: 100%; border-radius: 50%;">` : this.config.companyName.charAt(0)}
+              ${this.config.avatarUrl ? `<img src="${this.config.avatarUrl}" alt="" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` : this.config.companyName.charAt(0)}
             </div>
             <span>${this.config.companyName}</span>
           </div>
@@ -234,6 +260,9 @@
       // Toggle chat window
       button.addEventListener('click', () => {
         chatWindow.style.display = chatWindow.style.display === 'none' ? 'block' : 'none';
+        if (chatWindow.style.display === 'block') {
+          input.focus();
+        }
       });
 
       closeBtn.addEventListener('click', () => {
@@ -256,7 +285,10 @@
 
       sendBtn.addEventListener('click', sendMessage);
       input.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
       });
     }
 
@@ -273,6 +305,7 @@
   // Expose global function
   window.aiChat = function(action, configId) {
     if (action === 'init') {
+      console.log('Initializing chat widget with config ID:', configId);
       new ChatWidget(configId);
     }
   };
