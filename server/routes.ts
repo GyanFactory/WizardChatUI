@@ -6,6 +6,9 @@ import { spawn } from "child_process";
 import path from "path";
 import fs from "fs";
 import CryptoJS from 'crypto-js';
+import { WebSocketServer, WebSocket } from 'ws';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 // Configure multer for file upload
 const upload = multer({
@@ -405,7 +408,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Serve widget.js
+  app.get("/widget.js", (req, res) => {
+    res.sendFile(path.join(process.cwd(), "public/widget.js"));
+  });
 
   const httpServer = createServer(app);
+
+  // Initialize WebSocket server
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+
+  wss.on('connection', (ws) => {
+    ws.on('message', async (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+
+        if (data.type === 'question') {
+          // Get chatbot configuration and QA items
+          const config = await storage.getChatbotConfig(parseInt(data.configId));
+          if (!config) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              content: 'Chatbot configuration not found'
+            }));
+            return;
+          }
+
+          // Get all QA items for the config
+          const qaItems = await storage.getQAItems(config.id);
+
+          // Simple keyword matching for now
+          // TODO: Implement more sophisticated matching using embeddings
+          const questionWords = data.content.toLowerCase().split(/\W+/);
+          const matches = qaItems.map(qa => {
+            const questionMatch = questionWords.filter(word =>
+              qa.question.toLowerCase().includes(word)
+            ).length;
+            const answerMatch = questionWords.filter(word =>
+              qa.answer.toLowerCase().includes(word)
+            ).length;
+            return {
+              qa,
+              score: questionMatch * 2 + answerMatch
+            };
+          });
+
+          // Sort by score and get the best match
+          matches.sort((a, b) => b.score - a.score);
+          const bestMatch = matches[0];
+
+          if (bestMatch && bestMatch.score > 0) {
+            ws.send(JSON.stringify({
+              type: 'answer',
+              content: bestMatch.qa.answer
+            }));
+          } else {
+            ws.send(JSON.stringify({
+              type: 'answer',
+              content: "I'm sorry, I couldn't find a relevant answer to your question. Could you please rephrase or ask something else?"
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('WebSocket error:', error);
+        ws.send(JSON.stringify({
+          type: 'error',
+          content: 'An error occurred while processing your message'
+        }));
+      }
+    });
+
+    ws.on('error', console.error);
+  });
+
   return httpServer;
 }
