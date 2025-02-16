@@ -29,10 +29,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ["/api/user"],
     queryFn: async () => {
       try {
-        const response = await fetch("/api/user");
+        const response = await fetch("/api/user", {
+          credentials: "include"
+        });
         if (!response.ok) {
           if (response.status === 401) return null;
-          throw new Error("Failed to fetch user");
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Failed to fetch user");
         }
         return response.json();
       } catch (error) {
@@ -48,7 +51,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify(credentials),
       });
-      return await response.json();
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Login failed");
+      }
+      return data;
     },
     onSuccess: (user: User) => {
       queryClient.setQueryData(["/api/user"], user);
@@ -72,12 +79,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify(userData),
       });
-      return await response.json();
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || "Registration failed");
+      }
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
         title: "Success",
-        description: "Registration successful. Please check your email to verify your account.",
+        description: data.message || "Registration successful. Please check your email to verify your account.",
       });
     },
     onError: (error: Error) => {
@@ -94,9 +105,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await apiRequest("/api/logout", {
         method: "POST",
       });
+      const data = await response.json();
       if (!response.ok) {
-        throw new Error("Failed to logout");
+        throw new Error(data.message || "Logout failed");
       }
+      return data;
     },
     onSuccess: () => {
       queryClient.setQueryData(["/api/user"], null);
