@@ -395,6 +395,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add user password change endpoint
+  app.post("/api/user/change-password", async (req, res) => {
+    if (!req.isAuthenticated) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      // Verify current password
+      if (user.password !== currentPassword) {
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+
+      // Update password
+      await storage.updateUserPassword(user.id, newPassword);
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      console.error("Failed to change password:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to change password"
+      });
+    }
+  });
+
+  // Get user's chatbot configurations
+  app.get("/api/chatbot-configs", async (req, res) => {
+    if (!req.isAuthenticated) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const configs = await storage.getChatbotConfigsByUser(req.user!.id);
+      res.json(configs);
+    } catch (error) {
+      console.error("Failed to fetch chatbot configs:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch configurations"
+      });
+    }
+  });
+
   // Serve widget.js with proper content type and caching headers
   app.get("/widget.js", (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');

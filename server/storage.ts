@@ -21,9 +21,11 @@ export interface IStorage {
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   createUser(user: InsertUser & { verificationToken: string }): Promise<User>;
   verifyUser(userId: number): Promise<User>;
+  updateUserPassword(userId: number, newPassword: string): Promise<User>;
 
   // ChatbotConfig operations
   getChatbotConfig(id: number): Promise<ChatbotConfig | undefined>;
+  getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]>;
   createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig>;
   updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null>;
 
@@ -185,6 +187,24 @@ export class MemStorage implements IStorage {
 
   async deleteQAItem(id: number): Promise<void> {
     this.qaItems.delete(id);
+  }
+
+  async updateUserPassword(userId: number, newPassword: string): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+
+    const updatedUser = {
+      ...user,
+      password: newPassword,
+    };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
+    return Array.from(this.configs.values()).filter(
+      (config) => config.userId === userId
+    );
   }
 }
 
