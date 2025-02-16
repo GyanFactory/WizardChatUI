@@ -87,11 +87,11 @@ export function setupAuth(app: Express) {
 
   app.post("/api/register", asyncHandler(async (req, res) => {
     try {
-      const { email, password, name } = req.body;
+      const { email, password } = req.body;
 
-      if (!email || !password || !name) {
+      if (!email || !password) {
         return res.status(400).json({ 
-          message: "Missing required fields",
+          message: "Email and password are required",
           status: "error"
         });
       }
@@ -109,7 +109,6 @@ export function setupAuth(app: Express) {
 
       const user = await storage.createUser({
         email,
-        name,
         password: hashedPassword,
         verificationToken,
         isVerified: false
