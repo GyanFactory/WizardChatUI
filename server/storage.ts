@@ -7,7 +7,6 @@ import {
   type InsertQAItem
 } from "@shared/schema";
 import { users, type User, type InsertUser } from "@shared/schema";
-import { db } from "./db";
 import { eq } from "drizzle-orm";
 import createMemoryStore from "memorystore";
 import session from "express-session";
@@ -22,6 +21,7 @@ export interface IStorage {
   createUser(user: InsertUser & { verificationToken: string }): Promise<User>;
   verifyUser(userId: number): Promise<User>;
   updateUserPassword(userId: number, newPassword: string): Promise<User>;
+  clearUsers(): Promise<void>;
 
   // ChatbotConfig operations
   getChatbotConfig(id: number): Promise<ChatbotConfig | undefined>;
@@ -81,20 +81,28 @@ export class MemStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalizedEmail = email.toLowerCase().trim();
     console.log('Getting user by email:', normalizedEmail);
-    const user = Array.from(this.users.values()).find(
-      (user) => user.email.toLowerCase() === normalizedEmail
-    );
-    console.log('Found user:', user);
-    return user;
+    // Iterate through all users to find a match
+    for (const user of this.users.values()) {
+      if (user.email.toLowerCase() === normalizedEmail) {
+        console.log('Found user:', user);
+        return user;
+      }
+    }
+    console.log('No user found with email:', normalizedEmail);
+    return undefined;
   }
 
   async getUserByVerificationToken(token: string): Promise<User | undefined> {
     console.log('Getting user by verification token:', token);
-    const user = Array.from(this.users.values()).find(
-      (user) => user.verificationToken === token,
-    );
-    console.log('Found user:', user);
-    return user;
+    // Iterate through all users to find a match
+    for (const user of this.users.values()) {
+      if (user.verificationToken === token) {
+        console.log('Found user:', user);
+        return user;
+      }
+    }
+    console.log('No user found with token:', token);
+    return undefined;
   }
 
   async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
@@ -102,7 +110,7 @@ export class MemStorage implements IStorage {
     console.log('Creating user with ID:', id);
     const user: User = {
       id,
-      email: insertUser.email.toLowerCase().trim(), 
+      email: insertUser.email.toLowerCase().trim(),
       password: insertUser.password,
       verificationToken: insertUser.verificationToken,
       isVerified: false,
@@ -140,13 +148,32 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
+  async clearUsers(): Promise<void> {
+    console.log('Clearing all users from storage');
+    this.users.clear();
+    this.currentId = 1;
+  }
+
+  // Rest of the implementation remains the same...
   async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
     return this.configs.get(id);
   }
 
+  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
+    return Array.from(this.configs.values()).filter(
+      (config) => config.userId === userId
+    );
+  }
+
   async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
     const id = this.currentConfigId++;
-    const newConfig = { ...config, id };
+    const newConfig: ChatbotConfig = {
+      ...config,
+      id,
+      createdAt: new Date(),
+      userId: config.userId ?? null,
+      avatarUrl: config.avatarUrl ?? null,
+    };
     this.configs.set(id, newConfig);
     return newConfig;
   }
@@ -165,7 +192,12 @@ export class MemStorage implements IStorage {
 
   async createDocument(doc: InsertDocument): Promise<Document> {
     const id = this.currentDocId++;
-    const newDoc = { ...doc, id, embeddings: null };
+    const newDoc: Document = {
+      ...doc,
+      id,
+      configId: doc.configId ?? null,
+      embeddings: null,
+    };
     this.documents.set(id, newDoc);
     return newDoc;
   }
@@ -193,7 +225,13 @@ export class MemStorage implements IStorage {
 
   async createQAItem(item: InsertQAItem): Promise<QAItem> {
     const id = this.currentQAId++;
-    const newItem = { ...item, id };
+    const newItem: QAItem = {
+      ...item,
+      id,
+      configId: item.configId ?? null,
+      documentId: item.documentId ?? null,
+      isGenerated: item.isGenerated ?? null,
+    };
     this.qaItems.set(id, newItem);
     return newItem;
   }
@@ -213,16 +251,6 @@ export class MemStorage implements IStorage {
 
   async deleteQAItem(id: number): Promise<void> {
     this.qaItems.delete(id);
-  }
-  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
-    return Array.from(this.configs.values()).filter(
-      (config) => config.userId === userId
-    );
-  }
-  async clearUsers(): Promise<void> {
-    console.log('Clearing all users from storage');
-    this.users.clear();
-    this.currentId = 1;
   }
 }
 
