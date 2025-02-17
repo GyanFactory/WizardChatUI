@@ -208,21 +208,6 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/verify-email", async (req, res) => {
-    const { token } = req.query;
-    if (!token || typeof token !== 'string') {
-      return res.status(400).json({ message: "Invalid verification token" });
-    }
-
-    const user = await storage.getUserByVerificationToken(token);
-    if (!user) {
-      return res.status(400).json({ message: "Invalid or expired verification token" });
-    }
-
-    await storage.verifyUser(user.id);
-    res.json({ message: "Email verified successfully. You can now log in." });
-  });
-
   app.get("/api/user", (req, res) => {
     console.log('Get user request, authenticated:', req.isAuthenticated(), 'user:', req.user?.email);
     if (!req.isAuthenticated()) {
