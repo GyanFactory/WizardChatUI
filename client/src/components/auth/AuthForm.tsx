@@ -80,7 +80,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
                 description: "Welcome back!",
               });
               form.reset();
-              // Call onSuccess callback after successful login
+              // Immediately call onSuccess callback after successful login
               onSuccess();
             },
           }

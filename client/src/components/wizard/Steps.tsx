@@ -69,11 +69,19 @@ export default function Steps() {
   };
 
   const handleLoginSuccess = () => {
+    // Close the dialog
     setShowAuthDialog(false);
-    // Only proceed to next step if user is authenticated
-    if (user) {
-      handleNext();
-    }
+    // Wait for the auth state to be updated
+    setTimeout(() => {
+      if (user) {
+        // Only proceed to next step if user is authenticated
+        handleNext();
+        toast({
+          title: "Success",
+          description: "You're now logged in and can continue with the setup",
+        });
+      }
+    }, 100);
   };
 
   return (
