@@ -68,6 +68,14 @@ export default function Steps() {
     }
   };
 
+  const handleLoginSuccess = () => {
+    setShowAuthDialog(false);
+    // Only proceed to next step if user is authenticated
+    if (user) {
+      handleNext();
+    }
+  };
+
   return (
     <div>
       <div className="min-h-[400px]">
@@ -98,10 +106,7 @@ export default function Steps() {
           <DialogHeader>
             <DialogTitle>Login or Create Account</DialogTitle>
           </DialogHeader>
-          <AuthForm onSuccess={() => {
-            setShowAuthDialog(false);
-            handleNext();
-          }} />
+          <AuthForm onSuccess={handleLoginSuccess} />
         </DialogContent>
       </Dialog>
     </div>
