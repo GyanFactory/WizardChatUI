@@ -18,14 +18,26 @@ const scryptAsync = promisify(scrypt);
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
+  const hashedPassword = `${buf.toString("hex")}.${salt}`;
+  console.log('Generated password hash:', hashedPassword);
+  return hashedPassword;
 }
 
 async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+  try {
+    const [hashed, salt] = stored.split(".");
+    if (!hashed || !salt) {
+      console.error('Invalid stored password format');
+      return false;
+    }
+    console.log('Comparing password with salt:', salt);
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    return timingSafeEqual(hashedBuf, suppliedBuf);
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
 }
 
 async function generateVerificationToken() {
@@ -34,12 +46,6 @@ async function generateVerificationToken() {
 
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
-}
-
-export async function createTestUser() {
-  const hashedPassword = await hashPassword('123456');
-  console.log('Creating test user with hash:', hashedPassword);
-  return hashedPassword;
 }
 
 export function setupAuth(app: Express) {
@@ -65,7 +71,7 @@ export function setupAuth(app: Express) {
       async (email, password, done) => {
         try {
           const normalizedEmail = normalizeEmail(email);
-          console.log('Attempting login for email:', normalizedEmail);
+          console.log('Login attempt for email:', normalizedEmail);
 
           const user = await storage.getUserByEmail(normalizedEmail);
           console.log('Found user:', user ? 'yes' : 'no');
@@ -74,9 +80,9 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Invalid credentials" });
           }
 
-          console.log('Comparing passwords...');
+          console.log('Stored password hash:', user.password);
           const isPasswordValid = await comparePasswords(password, user.password);
-          console.log('Password valid:', isPasswordValid ? 'yes' : 'no');
+          console.log('Password validation result:', isPasswordValid);
 
           if (!isPasswordValid) {
             return done(null, false, { message: "Invalid credentials" });
@@ -111,7 +117,6 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Register endpoint
   app.post("/api/register", async (req, res) => {
     try {
       const { email: rawEmail, password } = req.body;
@@ -143,9 +148,16 @@ export function setupAuth(app: Express) {
         verificationToken,
       });
 
+      console.log('User created successfully:', {
+        id: user.id,
+        email: user.email,
+        verificationToken: user.verificationToken
+      });
+
       res.status(201).json({
         message: "Registration successful",
-        status: "success"
+        status: "success",
+        verificationToken // Include token in response for testing
       });
     } catch (error) {
       console.error('Registration error:', error);

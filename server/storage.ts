@@ -72,24 +72,34 @@ export class MemStorage implements IStorage {
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    console.log('Getting user by ID:', id);
+    const user = this.users.get(id);
+    console.log('Found user:', user);
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalizedEmail = email.toLowerCase().trim();
-    return Array.from(this.users.values()).find(
+    console.log('Getting user by email:', normalizedEmail);
+    const user = Array.from(this.users.values()).find(
       (user) => user.email.toLowerCase() === normalizedEmail
     );
+    console.log('Found user:', user);
+    return user;
   }
 
   async getUserByVerificationToken(token: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
+    console.log('Getting user by verification token:', token);
+    const user = Array.from(this.users.values()).find(
       (user) => user.verificationToken === token,
     );
+    console.log('Found user:', user);
+    return user;
   }
 
   async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
     const id = this.currentId++;
+    console.log('Creating user with ID:', id);
     const user: User = {
       id,
       email: insertUser.email.toLowerCase().trim(), 
@@ -99,10 +109,12 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
     };
     this.users.set(id, user);
+    console.log('Created user:', user);
     return user;
   }
 
   async verifyUser(userId: number): Promise<User> {
+    console.log('Verifying user:', userId);
     const user = await this.getUser(userId);
     if (!user) throw new Error('User not found');
 
@@ -112,7 +124,20 @@ export class MemStorage implements IStorage {
       verificationToken: null,
     };
     this.users.set(userId, verifiedUser);
+    console.log('User verified:', verifiedUser);
     return verifiedUser;
+  }
+
+  async updateUserPassword(userId: number, newPassword: string): Promise<User> {
+    const user = await this.getUser(userId);
+    if (!user) throw new Error('User not found');
+
+    const updatedUser = {
+      ...user,
+      password: newPassword,
+    };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
 
   async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
@@ -189,23 +214,15 @@ export class MemStorage implements IStorage {
   async deleteQAItem(id: number): Promise<void> {
     this.qaItems.delete(id);
   }
-
-  async updateUserPassword(userId: number, newPassword: string): Promise<User> {
-    const user = await this.getUser(userId);
-    if (!user) throw new Error('User not found');
-
-    const updatedUser = {
-      ...user,
-      password: newPassword,
-    };
-    this.users.set(userId, updatedUser);
-    return updatedUser;
-  }
-
   async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
     return Array.from(this.configs.values()).filter(
       (config) => config.userId === userId
     );
+  }
+  async clearUsers(): Promise<void> {
+    console.log('Clearing all users from storage');
+    this.users.clear();
+    this.currentId = 1;
   }
 }
 
