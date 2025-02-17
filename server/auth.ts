@@ -36,13 +36,9 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
-async function generateTestHash(password: string) {
-  return hashPassword(password);
-}
-
 export async function createTestUser() {
   const hashedPassword = await hashPassword('123456');
-  console.log('Test user password hash:', hashedPassword);
+  console.log('Creating test user with hash:', hashedPassword);
   return hashedPassword;
 }
 
@@ -78,6 +74,7 @@ export function setupAuth(app: Express) {
             return done(null, false, { message: "Invalid credentials" });
           }
 
+          console.log('Comparing passwords...');
           const isPasswordValid = await comparePasswords(password, user.password);
           console.log('Password valid:', isPasswordValid ? 'yes' : 'no');
 
@@ -114,12 +111,8 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Wrap async route handlers to properly catch errors
-  const asyncHandler = (fn: Function) => (req: any, res: any, next: any) => {
-    return Promise.resolve(fn(req, res, next)).catch(next);
-  };
-
-  app.post("/api/register", asyncHandler(async (req, res) => {
+  // Register endpoint
+  app.post("/api/register", async (req, res) => {
     try {
       const { email: rawEmail, password } = req.body;
       const email = normalizeEmail(rawEmail);
@@ -142,26 +135,16 @@ export function setupAuth(app: Express) {
       const verificationToken = await generateVerificationToken();
       const hashedPassword = await hashPassword(password);
 
+      console.log('Creating user with hashed password:', hashedPassword);
+
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         verificationToken,
-        isVerified: false
       });
 
-      console.log('User registered:', email);
-
-      const emailSent = await sendVerificationEmail(user, verificationToken);
-
-      if (!emailSent) {
-        return res.status(201).json({
-          message: "Account created but verification email could not be sent. Please try requesting a new verification email later.",
-          status: "email_failed"
-        });
-      }
-
       res.status(201).json({
-        message: "Registration successful. Please check your email to verify your account.",
+        message: "Registration successful",
         status: "success"
       });
     } catch (error) {
@@ -171,7 +154,7 @@ export function setupAuth(app: Express) {
         status: "error"
       });
     }
-  }));
+  });
 
   app.post("/api/login", (req, res, next) => {
     const rawEmail = req.body.email;
@@ -210,7 +193,7 @@ export function setupAuth(app: Express) {
     });
   });
 
-  app.get("/api/verify-email", asyncHandler(async (req, res) => {
+  app.get("/api/verify-email", async (req, res) => {
     const { token } = req.query;
     if (!token || typeof token !== 'string') {
       return res.status(400).json({ message: "Invalid verification token" });
@@ -223,7 +206,7 @@ export function setupAuth(app: Express) {
 
     await storage.verifyUser(user.id);
     res.json({ message: "Email verified successfully. You can now log in." });
-  }));
+  });
 
   app.get("/api/user", (req, res) => {
     console.log('Get user request, authenticated:', req.isAuthenticated(), 'user:', req.user?.email);
