@@ -58,13 +58,25 @@ export function setupAuth(app: Express) {
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      httpOnly: true,
+      path: '/'
     }
   };
 
+  app.set('trust proxy', 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Update CORS settings
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,UPDATE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+    next();
+  });
 
   passport.use(
     new LocalStrategy(
@@ -150,7 +162,15 @@ export function setupAuth(app: Express) {
       });
 
       // Send verification email
-      await sendVerificationEmail(user, verificationToken);
+      try {
+        await sendVerificationEmail(user, verificationToken);
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        return res.status(201).json({
+          message: "Account created but verification email could not be sent",
+          status: "email_failed"
+        });
+      }
 
       console.log('User created successfully:', {
         id: user.id,
@@ -168,6 +188,33 @@ export function setupAuth(app: Express) {
         message: "Failed to create account. Please try again.",
         status: "error"
       });
+    }
+  });
+
+  app.get("/api/verify-email", async (req, res) => {
+    try {
+      const { token } = req.query;
+      console.log('Verifying email with token:', token);
+
+      if (!token || typeof token !== 'string') {
+        console.error('Invalid token format');
+        return res.status(400).json({ message: "Invalid verification token" });
+      }
+
+      const user = await storage.getUserByVerificationToken(token);
+      console.log('Found user for verification:', user ? 'yes' : 'no');
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired verification token" });
+      }
+
+      await storage.verifyUser(user.id);
+      console.log('User verified successfully:', user.email);
+
+      res.json({ message: "Email verified successfully. You can now log in." });
+    } catch (error) {
+      console.error('Email verification error:', error);
+      res.status(500).json({ message: "Failed to verify email" });
     }
   });
 
