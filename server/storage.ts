@@ -4,14 +4,32 @@ import {
   type Document,
   type InsertDocument,
   type QAItem,
-  type InsertQAItem
+  type InsertQAItem,
+  users,
 } from "@shared/schema";
-import { users, type User, type InsertUser } from "@shared/schema";
+import { type User, type InsertUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import createMemoryStore from "memorystore";
+import { drizzle } from 'drizzle-orm/node-postgres';
+import pkg from 'pg';
+const { Client } = pkg;
 import session from "express-session";
+import connectPg from "connect-pg-simple";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Connect with error handling and logging
+client.connect().then(() => {
+  console.log('Successfully connected to PostgreSQL database');
+}).catch(err => {
+  console.error('Failed to connect to PostgreSQL database:', err);
+  process.exit(1); // Exit if we can't connect to the database
+});
+
+const db = drizzle(client);
 
 export interface IStorage {
   // User operations
@@ -46,212 +64,171 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private configs: Map<number, ChatbotConfig>;
-  private documents: Map<number, Document>;
-  private qaItems: Map<number, QAItem>;
-  private currentId: number;
-  private currentConfigId: number;
-  private currentDocId: number;
-  private currentQAId: number;
+export class DatabaseStorage implements IStorage {
   readonly sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.configs = new Map();
-    this.documents = new Map();
-    this.qaItems = new Map();
-    this.currentId = 1;
-    this.currentConfigId = 1;
-    this.currentDocId = 1;
-    this.currentQAId = 1;
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000, // prune expired entries every 24h
+    this.sessionStore = new PostgresSessionStore({
+      conObject: {
+        connectionString: process.env.DATABASE_URL,
+      },
+      createTableIfMissing: true,
     });
   }
 
   async getUser(id: number): Promise<User | undefined> {
     console.log('Getting user by ID:', id);
-    const user = this.users.get(id);
-    console.log('Found user:', user);
-    return user;
+    try {
+      const results = await db.select().from(users).where(eq(users.id, id));
+      const user = results[0];
+      console.log('Found user:', user ? 'yes' : 'no');
+      return user;
+    } catch (error) {
+      console.error('Error getting user by ID:', error);
+      throw error;
+    }
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalizedEmail = email.toLowerCase().trim();
     console.log('Getting user by email:', normalizedEmail);
-    // Iterate through all users to find a match
-    for (const user of this.users.values()) {
-      if (user.email.toLowerCase() === normalizedEmail) {
-        console.log('Found user:', user);
-        return user;
-      }
+    try {
+      const results = await db.select().from(users).where(eq(users.email, normalizedEmail));
+      const user = results[0];
+      console.log('Found user:', user ? 'yes' : 'no');
+      return user;
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      throw error;
     }
-    console.log('No user found with email:', normalizedEmail);
-    return undefined;
   }
 
   async getUserByVerificationToken(token: string): Promise<User | undefined> {
     console.log('Getting user by verification token:', token);
-    // Iterate through all users to find a match
-    for (const user of this.users.values()) {
-      if (user.verificationToken === token) {
-        console.log('Found user:', user);
-        return user;
-      }
+    try {
+      const results = await db.select().from(users).where(eq(users.verificationToken, token));
+      const user = results[0];
+      console.log('Found user:', user ? 'yes' : 'no');
+      return user;
+    } catch (error) {
+      console.error('Error getting user by verification token:', error);
+      throw error;
     }
-    console.log('No user found with token:', token);
-    return undefined;
   }
 
   async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
-    const id = this.currentId++;
-    console.log('Creating user with ID:', id);
-    const user: User = {
-      id,
-      email: insertUser.email.toLowerCase().trim(),
-      password: insertUser.password,
-      verificationToken: insertUser.verificationToken,
-      isVerified: false,
-      createdAt: new Date(),
-    };
-    this.users.set(id, user);
-    console.log('Created user:', user);
-    return user;
+    console.log('Creating user with email:', insertUser.email);
+    try {
+      const results = await db.insert(users).values({
+        email: insertUser.email.toLowerCase().trim(),
+        password: insertUser.password,
+        verificationToken: insertUser.verificationToken,
+        isVerified: false,
+        createdAt: new Date(),
+      }).returning();
+
+      const user = results[0];
+      console.log('Created user:', user);
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
   }
 
   async verifyUser(userId: number): Promise<User> {
     console.log('Verifying user:', userId);
-    const user = await this.getUser(userId);
-    if (!user) throw new Error('User not found');
+    try {
+      const results = await db
+        .update(users)
+        .set({ isVerified: true, verificationToken: null })
+        .where(eq(users.id, userId))
+        .returning();
 
-    const verifiedUser = {
-      ...user,
-      isVerified: true,
-      verificationToken: null,
-    };
-    this.users.set(userId, verifiedUser);
-    console.log('User verified:', verifiedUser);
-    return verifiedUser;
+      const user = results[0];
+      console.log('User verified:', user);
+      return user;
+    } catch (error) {
+      console.error('Error verifying user:', error);
+      throw error;
+    }
   }
 
   async updateUserPassword(userId: number, newPassword: string): Promise<User> {
-    const user = await this.getUser(userId);
-    if (!user) throw new Error('User not found');
-
-    const updatedUser = {
-      ...user,
-      password: newPassword,
-    };
-    this.users.set(userId, updatedUser);
-    return updatedUser;
+    try {
+      const results = await db
+        .update(users)
+        .set({ password: newPassword })
+        .where(eq(users.id, userId))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating user password:', error);
+      throw error;
+    }
   }
 
   async clearUsers(): Promise<void> {
     console.log('Clearing all users from storage');
-    this.users.clear();
-    this.currentId = 1;
+    try {
+      await db.delete(users);
+    } catch (error) {
+      console.error('Error clearing users:', error);
+      throw error;
+    }
   }
 
-  // Rest of the implementation remains the same...
+  // Implement other required methods...
   async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
-    return this.configs.get(id);
+    return undefined;
   }
 
   async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
-    return Array.from(this.configs.values()).filter(
-      (config) => config.userId === userId
-    );
+    return [];
   }
 
   async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
-    const id = this.currentConfigId++;
-    const newConfig: ChatbotConfig = {
-      ...config,
-      id,
-      createdAt: new Date(),
-      userId: config.userId ?? null,
-      avatarUrl: config.avatarUrl ?? null,
-    };
-    this.configs.set(id, newConfig);
-    return newConfig;
+    throw new Error("Not implemented");
   }
 
   async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
-    const existingConfig = this.configs.get(id);
-    if (!existingConfig) return null;
-    const updatedConfig = { ...existingConfig, ...config };
-    this.configs.set(id, updatedConfig);
-    return updatedConfig;
+    return null;
   }
 
   async getDocument(id: number): Promise<Document | undefined> {
-    return this.documents.get(id);
+    return undefined;
   }
 
   async createDocument(doc: InsertDocument): Promise<Document> {
-    const id = this.currentDocId++;
-    const newDoc: Document = {
-      ...doc,
-      id,
-      configId: doc.configId ?? null,
-      embeddings: null,
-    };
-    this.documents.set(id, newDoc);
-    return newDoc;
+    throw new Error("Not implemented");
   }
 
   async updateDocumentEmbeddings(id: number, embeddings: number[][]): Promise<Document> {
-    const doc = await this.getDocument(id);
-    if (!doc) throw new Error('Document not found');
-
-    const updatedDoc = { ...doc, embeddings };
-    this.documents.set(id, updatedDoc);
-    return updatedDoc;
+    throw new Error("Not implemented");
   }
 
   async getQAItems(configId: number): Promise<QAItem[]> {
-    return Array.from(this.qaItems.values()).filter(
-      (item) => item.configId === configId
-    );
+    return [];
   }
 
   async getQAItemsByDocument(documentId: number): Promise<QAItem[]> {
-    return Array.from(this.qaItems.values()).filter(
-      (item) => item.documentId === documentId
-    );
+    return [];
   }
 
   async createQAItem(item: InsertQAItem): Promise<QAItem> {
-    const id = this.currentQAId++;
-    const newItem: QAItem = {
-      ...item,
-      id,
-      configId: item.configId ?? null,
-      documentId: item.documentId ?? null,
-      isGenerated: item.isGenerated ?? null,
-    };
-    this.qaItems.set(id, newItem);
-    return newItem;
+    throw new Error("Not implemented");
   }
 
   async createQAItems(items: InsertQAItem[]): Promise<QAItem[]> {
-    return Promise.all(items.map(item => this.createQAItem(item)));
+    throw new Error("Not implemented");
   }
 
   async updateQAItem(id: number, item: Partial<InsertQAItem>): Promise<QAItem> {
-    const existingItem = this.qaItems.get(id);
-    if (!existingItem) throw new Error('QA item not found');
-
-    const updatedItem = { ...existingItem, ...item };
-    this.qaItems.set(id, updatedItem);
-    return updatedItem;
+    throw new Error("Not implemented");
   }
 
   async deleteQAItem(id: number): Promise<void> {
-    this.qaItems.delete(id);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

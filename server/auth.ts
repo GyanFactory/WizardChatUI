@@ -6,7 +6,6 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
-import { sendVerificationEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -41,10 +40,6 @@ async function comparePasswords(supplied: string, stored: string) {
   }
 }
 
-async function generateVerificationToken() {
-  return randomBytes(32).toString("hex");
-}
-
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
@@ -69,15 +64,6 @@ export function setupAuth(app: Express) {
   app.use(passport.initialize());
   app.use(passport.session());
 
-  // Update CORS settings
-  app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,UPDATE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
-    next();
-  });
-
   passport.use(
     new LocalStrategy(
       { usernameField: 'email' },
@@ -90,6 +76,7 @@ export function setupAuth(app: Express) {
           console.log('Found user:', user ? 'yes' : 'no');
 
           if (!user) {
+            console.log('No user found with email:', normalizedEmail);
             return done(null, false, { message: "Invalid credentials" });
           }
 
@@ -98,13 +85,16 @@ export function setupAuth(app: Express) {
           console.log('Password validation result:', isPasswordValid);
 
           if (!isPasswordValid) {
+            console.log('Invalid password for user:', normalizedEmail);
             return done(null, false, { message: "Invalid credentials" });
           }
 
           if (!user.isVerified) {
+            console.log('User not verified:', normalizedEmail);
             return done(null, false, { message: "Please verify your email first" });
           }
 
+          console.log('Login successful for user:', normalizedEmail);
           return done(null, user);
         } catch (error) {
           console.error('Login error:', error);
@@ -150,7 +140,7 @@ export function setupAuth(app: Express) {
         });
       }
 
-      const verificationToken = await generateVerificationToken();
+      const verificationToken = randomBytes(32).toString("hex");
       const hashedPassword = await hashPassword(password);
 
       console.log('Creating user with hashed password:', hashedPassword);
@@ -160,17 +150,6 @@ export function setupAuth(app: Express) {
         password: hashedPassword,
         verificationToken,
       });
-
-      // Send verification email
-      try {
-        await sendVerificationEmail(user, verificationToken);
-      } catch (emailError) {
-        console.error('Failed to send verification email:', emailError);
-        return res.status(201).json({
-          message: "Account created but verification email could not be sent",
-          status: "email_failed"
-        });
-      }
 
       console.log('User created successfully:', {
         id: user.id,
