@@ -6,6 +6,8 @@ import {
   type QAItem,
   type InsertQAItem,
   users,
+  documents,
+  qaItems,
 } from "@shared/schema";
 import { type User, type InsertUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -178,56 +180,150 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Implement other required methods...
-  async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
-    return undefined;
-  }
-
-  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
-    return [];
-  }
-
-  async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
-    throw new Error("Not implemented");
-  }
-
-  async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
-    return null;
-  }
-
+  // Document operations
   async getDocument(id: number): Promise<Document | undefined> {
-    return undefined;
+    try {
+      const results = await db.select().from(documents).where(eq(documents.id, id));
+      return results[0];
+    } catch (error) {
+      console.error('Error getting document:', error);
+      throw error;
+    }
   }
 
   async createDocument(doc: InsertDocument): Promise<Document> {
-    throw new Error("Not implemented");
+    try {
+      console.log('Creating document:', doc);
+      const results = await db.insert(documents).values(doc).returning();
+      const document = results[0];
+      console.log('Created document:', document);
+      return document;
+    } catch (error) {
+      console.error('Error creating document:', error);
+      throw error;
+    }
   }
 
   async updateDocumentEmbeddings(id: number, embeddings: number[][]): Promise<Document> {
-    throw new Error("Not implemented");
+    try {
+      const results = await db
+        .update(documents)
+        .set({ embeddings })
+        .where(eq(documents.id, id))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating document embeddings:', error);
+      throw error;
+    }
   }
 
+  // QA operations
   async getQAItems(configId: number): Promise<QAItem[]> {
-    return [];
+    try {
+      return await db.select().from(qaItems).where(eq(qaItems.configId, configId));
+    } catch (error) {
+      console.error('Error getting QA items:', error);
+      throw error;
+    }
   }
 
   async getQAItemsByDocument(documentId: number): Promise<QAItem[]> {
-    return [];
+    try {
+      return await db.select().from(qaItems).where(eq(qaItems.documentId, documentId));
+    } catch (error) {
+      console.error('Error getting QA items by document:', error);
+      throw error;
+    }
   }
 
   async createQAItem(item: InsertQAItem): Promise<QAItem> {
-    throw new Error("Not implemented");
+    try {
+      const results = await db.insert(qaItems).values(item).returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error creating QA item:', error);
+      throw error;
+    }
   }
 
   async createQAItems(items: InsertQAItem[]): Promise<QAItem[]> {
-    throw new Error("Not implemented");
+    try {
+      console.log('Creating QA items:', items.length);
+      const results = await db.insert(qaItems).values(items).returning();
+      console.log('Created QA items:', results.length);
+      return results;
+    } catch (error) {
+      console.error('Error creating QA items:', error);
+      throw error;
+    }
   }
 
   async updateQAItem(id: number, item: Partial<InsertQAItem>): Promise<QAItem> {
-    throw new Error("Not implemented");
+    try {
+      const results = await db
+        .update(qaItems)
+        .set(item)
+        .where(eq(qaItems.id, id))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating QA item:', error);
+      throw error;
+    }
   }
 
   async deleteQAItem(id: number): Promise<void> {
+    try {
+      await db.delete(qaItems).where(eq(qaItems.id, id));
+    } catch (error) {
+      console.error('Error deleting QA item:', error);
+      throw error;
+    }
+  }
+
+    // Chatbot config operations
+  async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
+    try {
+      const results = await db.select().from(documents).where(eq(documents.id, id));
+      return results[0];
+    } catch (error) {
+      console.error('Error getting chatbot config:', error);
+      throw error;
+    }
+  }
+
+  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
+    try {
+      return await db.select().from(documents).where(eq(documents.userId, userId));
+    } catch (error) {
+      console.error('Error getting chatbot configs:', error);
+      throw error;
+    }
+  }
+
+  async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
+    try {
+      const results = await db.insert(documents).values(config).returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error creating chatbot config:', error);
+      throw error;
+    }
+  }
+
+  async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
+    try {
+      const results = await db
+        .update(documents)
+        .set(config)
+        .where(eq(documents.id, id))
+        .returning();
+      return results[0] || null;
+    } catch (error) {
+      console.error('Error updating chatbot config:', error);
+      throw error;
+    }
   }
 }
 
