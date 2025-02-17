@@ -16,9 +16,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { User, LogOut, Settings } from "lucide-react";
+import { useWizardStore } from "@/store/wizardStore";
 
 export function Navigation() {
   const { user, logoutMutation } = useAuth();
+  const resetWizard = useWizardStore((state) => state.reset);
+
+  const handleLogout = () => {
+    resetWizard();
+    logoutMutation.mutate();
+  };
 
   return (
     <nav className="border-b">
@@ -52,7 +59,7 @@ export function Navigation() {
                   </DropdownMenuItem>
                 </Link>
                 <DropdownMenuItem
-                  onClick={() => logoutMutation.mutate()}
+                  onClick={handleLogout}
                   disabled={logoutMutation.isPending}
                 >
                   <LogOut className="mr-2 h-4 w-4" />

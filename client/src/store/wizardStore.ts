@@ -20,6 +20,7 @@ interface WizardState {
   updateQAItem: (index: number, item: { question: string; answer: string }) => void;
   removeQAItem: (index: number) => void;
   setQAItems: (items: Array<{ question: string; answer: string }>) => void;
+  reset: () => void;  // Added reset function
 }
 
 export const defaultAvatars = [
@@ -30,7 +31,8 @@ export const defaultAvatars = [
   "/avatars/bot-minimal.svg",
 ];
 
-export const useWizardStore = create<WizardState>((set) => ({
+// Define initial state as a constant to reuse in reset
+const initialState = {
   currentStep: 0,
   companyName: '',
   welcomeMessage: '',
@@ -43,6 +45,10 @@ export const useWizardStore = create<WizardState>((set) => ({
   buttonStyle: 'solid',
   currentDocumentId: null,
   qaItems: [],
+};
+
+export const useWizardStore = create<WizardState>((set) => ({
+  ...initialState,
   setStep: (step) => set({ currentStep: step }),
   updateConfig: (config) => set((state) => ({ ...state, ...config })),
   setCurrentDocument: (documentId) => set({ currentDocumentId: documentId }),
@@ -56,4 +62,5 @@ export const useWizardStore = create<WizardState>((set) => ({
     qaItems: state.qaItems.filter((_, i) => i !== index)
   })),
   setQAItems: (items) => set({ qaItems: items }),
+  reset: () => set(initialState),  // Added reset function that restores initial state
 }));
