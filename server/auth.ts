@@ -36,6 +36,16 @@ function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
 }
 
+async function generateTestHash(password: string) {
+  return hashPassword(password);
+}
+
+export async function createTestUser() {
+  const hashedPassword = await hashPassword('123456');
+  console.log('Test user password hash:', hashedPassword);
+  return hashedPassword;
+}
+
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET ?? 'your-secret-key',
@@ -115,7 +125,7 @@ export function setupAuth(app: Express) {
       const email = normalizeEmail(rawEmail);
 
       if (!email || !password) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Email and password are required",
           status: "error"
         });
@@ -123,7 +133,7 @@ export function setupAuth(app: Express) {
 
       const existingUser = await storage.getUserByEmail(email);
       if (existingUser) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: "Email already registered",
           status: "error"
         });
@@ -144,19 +154,19 @@ export function setupAuth(app: Express) {
       const emailSent = await sendVerificationEmail(user, verificationToken);
 
       if (!emailSent) {
-        return res.status(201).json({ 
+        return res.status(201).json({
           message: "Account created but verification email could not be sent. Please try requesting a new verification email later.",
           status: "email_failed"
         });
       }
 
-      res.status(201).json({ 
+      res.status(201).json({
         message: "Registration successful. Please check your email to verify your account.",
         status: "success"
       });
     } catch (error) {
       console.error('Registration error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to create account. Please try again.",
         status: "error"
       });
