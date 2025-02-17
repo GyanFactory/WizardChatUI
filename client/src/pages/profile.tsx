@@ -302,7 +302,7 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" asChild>
-                          <a href={`/wizard/new?config=${config.id}`}>Edit</a>
+                          <a href="/">Edit</a>
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -345,7 +345,7 @@ export default function ProfilePage() {
                     Start by creating a new chatbot configuration
                   </p>
                   <Button asChild>
-                    <a href="/wizard/new">Create New Project</a>
+                    <a href="/">Create New Project</a>
                   </Button>
                 </div>
               )}
