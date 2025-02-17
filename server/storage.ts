@@ -8,6 +8,7 @@ import {
   users,
   documents,
   qaItems,
+  chatbotConfig,
 } from "@shared/schema";
 import { type User, type InsertUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
@@ -282,10 +283,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-    // Chatbot config operations
+  // Chatbot config operations
   async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
     try {
-      const results = await db.select().from(documents).where(eq(documents.id, id));
+      const results = await db.select().from(chatbotConfig).where(eq(chatbotConfig.id, id));
       return results[0];
     } catch (error) {
       console.error('Error getting chatbot config:', error);
@@ -295,7 +296,7 @@ export class DatabaseStorage implements IStorage {
 
   async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
     try {
-      return await db.select().from(documents).where(eq(documents.userId, userId));
+      return await db.select().from(chatbotConfig).where(eq(chatbotConfig.userId, userId));
     } catch (error) {
       console.error('Error getting chatbot configs:', error);
       throw error;
@@ -304,7 +305,7 @@ export class DatabaseStorage implements IStorage {
 
   async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
     try {
-      const results = await db.insert(documents).values(config).returning();
+      const results = await db.insert(chatbotConfig).values(config).returning();
       return results[0];
     } catch (error) {
       console.error('Error creating chatbot config:', error);
@@ -315,9 +316,9 @@ export class DatabaseStorage implements IStorage {
   async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
     try {
       const results = await db
-        .update(documents)
+        .update(chatbotConfig)
         .set(config)
-        .where(eq(documents.id, id))
+        .where(eq(chatbotConfig.id, id))
         .returning();
       return results[0] || null;
     } catch (error) {
