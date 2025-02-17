@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { sendVerificationEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -150,6 +151,18 @@ export function setupAuth(app: Express) {
         password: hashedPassword,
         verificationToken,
       });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(user, verificationToken);
+        console.log('Verification email sent successfully to:', email);
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError);
+        return res.status(201).json({
+          message: "Account created but verification email could not be sent",
+          status: "email_failed"
+        });
+      }
 
       console.log('User created successfully:', {
         id: user.id,
