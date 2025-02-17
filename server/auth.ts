@@ -6,6 +6,7 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User as SelectUser } from "@shared/schema";
+import { sendVerificationEmail } from "./email";
 
 declare global {
   namespace Express {
@@ -148,6 +149,9 @@ export function setupAuth(app: Express) {
         verificationToken,
       });
 
+      // Send verification email
+      await sendVerificationEmail(user, verificationToken);
+
       console.log('User created successfully:', {
         id: user.id,
         email: user.email,
@@ -155,9 +159,8 @@ export function setupAuth(app: Express) {
       });
 
       res.status(201).json({
-        message: "Registration successful",
-        status: "success",
-        verificationToken // Include token in response for testing
+        message: "Registration successful. Please check your email to verify your account.",
+        status: "success"
       });
     } catch (error) {
       console.error('Registration error:', error);
@@ -189,7 +192,7 @@ export function setupAuth(app: Express) {
           return res.status(500).json({ message: "Login failed" });
         }
         console.log('Login successful for user:', user.email);
-        res.json(user);
+        res.json({ message: "Login successful", user });
       });
     })(req, res, next);
   });

@@ -8,11 +8,13 @@ if (!process.env.SENDGRID_API_KEY) {
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 export async function sendVerificationEmail(user: { email: string }, verificationToken: string) {
+  console.log('Attempting to send verification email to:', user.email);
+
   const verificationUrl = `${process.env.APP_URL || 'http://localhost:5000'}/verify-email?token=${verificationToken}`;
 
   const msg = {
     to: user.email,
-    from: 'admin@marathiboli.com', // Updated sender email
+    from: 'admin@marathiboli.com', // Make sure this email is verified in SendGrid
     subject: 'Verify your email address',
     html: `
       <h1>Welcome to End User Guide!</h1>
@@ -24,7 +26,7 @@ export async function sendVerificationEmail(user: { email: string }, verificatio
 
   try {
     await sgMail.send(msg);
-    console.log('Verification email sent successfully');
+    console.log('Verification email sent successfully to:', user.email);
     return true;
   } catch (error) {
     console.error('Error sending verification email:', error);
@@ -34,6 +36,6 @@ export async function sendVerificationEmail(user: { email: string }, verificatio
         console.error('SendGrid error response:', response.body);
       }
     }
-    return false;
+    throw new Error('Failed to send verification email');
   }
 }
