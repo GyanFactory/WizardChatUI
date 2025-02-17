@@ -28,13 +28,13 @@ type FormValues = {
 };
 
 export default function AuthForm({ onSuccess }: AuthFormProps) {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [activeTab, setActiveTab] = useState<"login" | "register">("login");
   const { loginMutation, registerMutation } = useAuth();
   const { toast } = useToast();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(
-      mode === "register"
+      activeTab === "register"
         ? insertUserSchema.extend({
             confirmPassword: insertUserSchema.shape.password,
           })
@@ -47,10 +47,9 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
     },
   });
 
-  const onSubmit = async (values: FormValues) => {
-    console.log("Form submitted with values:", values);
+  const handleSubmit = form.handleSubmit(async (values) => {
     try {
-      if (mode === "register") {
+      if (activeTab === "register") {
         if (values.password !== values.confirmPassword) {
           form.setError("confirmPassword", {
             message: "Passwords do not match",
@@ -62,23 +61,20 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
-              console.log("Registration successful");
               toast({
                 title: "Registration successful",
                 description: "Please check your email to verify your account.",
               });
               form.reset();
-              setMode("login");
+              setActiveTab("login");
             },
           }
         );
       } else {
-        console.log("Attempting login...");
         await loginMutation.mutateAsync(
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
-              console.log("Login successful");
               toast({
                 title: "Login successful",
                 description: "Welcome back!",
@@ -90,111 +86,110 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
         );
       }
     } catch (error) {
-      console.error("Auth error:", error);
       const errorMessage = error instanceof Error ? error.message : "An error occurred";
       toast({
-        title: mode === "register" ? "Registration failed" : "Login failed",
+        title: activeTab === "register" ? "Registration failed" : "Login failed",
         description: errorMessage,
         variant: "destructive",
       });
       form.setValue("password", "");
-      if (mode === "register") {
+      if (activeTab === "register") {
         form.setValue("confirmPassword", "");
       }
     }
-  };
+  });
 
-  const handleModeChange = (newMode: string) => {
-    setMode(newMode as "login" | "register");
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as "login" | "register");
     form.reset();
   };
 
+  const isLoading = loginMutation.isPending || registerMutation.isPending;
+
   return (
-    <Tabs value={mode} onValueChange={handleModeChange}>
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="login">Login</TabsTrigger>
-        <TabsTrigger value="register">Register</TabsTrigger>
-      </TabsList>
+    <div className="w-full max-w-md mx-auto p-6 space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="login" disabled={isLoading}>Login</TabsTrigger>
+          <TabsTrigger value="register" disabled={isLoading}>Register</TabsTrigger>
+        </TabsList>
 
-      <Form {...form}>
-        <form 
-          onSubmit={(e) => {
-            console.log("Form submission event triggered");
-            form.handleSubmit(onSubmit)(e);
-          }} 
-          className="space-y-4 mt-4"
-        >
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Email</FormLabel>
-                <FormControl>
-                  <Input 
-                    placeholder="Enter your email" 
-                    type="email"
-                    {...field} 
-                    disabled={loginMutation.isPending || registerMutation.isPending}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <div className="mt-6">
+          <Form {...form}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                      <Input 
+                        placeholder="Enter your email" 
+                        type="email"
+                        {...field} 
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          <FormField
-            control={form.control}
-            name="password"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Password</FormLabel>
-                <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="Enter your password"
-                    {...field}
-                    disabled={loginMutation.isPending || registerMutation.isPending}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+              <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="Enter your password"
+                        {...field}
+                        disabled={isLoading}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          {mode === "register" && (
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Confirm your password"
-                      {...field}
-                      disabled={loginMutation.isPending || registerMutation.isPending}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              {activeTab === "register" && (
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm Password</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="Confirm your password"
+                          {...field}
+                          disabled={isLoading}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
-          )}
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={loginMutation.isPending || registerMutation.isPending}
-          >
-            {(loginMutation.isPending || registerMutation.isPending) && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            )}
-            {mode === "login" ? "Login" : "Register"}
-          </Button>
-        </form>
-      </Form>
-    </Tabs>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+              >
+                {isLoading && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {activeTab === "login" ? "Sign In" : "Register"}
+              </Button>
+            </form>
+          </Form>
+        </div>
+      </Tabs>
+    </div>
   );
 }
