@@ -59,8 +59,9 @@ export default function ProfilePage() {
     },
   });
 
-  const { data: chatbots, isLoading: isLoadingChatbots } = useQuery<ChatbotConfig[]>({
+  const { data: chatbots, isLoading: isLoadingChatbots, error: chatbotsError } = useQuery<ChatbotConfig[]>({
     queryKey: ["/api/chatbot-configs"],
+    enabled: !!user, // Only fetch when user is authenticated
   });
 
   const changePasswordMutation = useMutation({
@@ -118,6 +119,17 @@ export default function ProfilePage() {
     },
   });
 
+  if (!user) {
+    return (
+      <div className="container py-8 text-center">
+        <h1 className="text-2xl font-bold mb-4">Please log in to view your profile</h1>
+        <Button asChild>
+          <a href="/auth">Go to Login</a>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       {/* Hero Section */}
@@ -129,7 +141,7 @@ export default function ProfilePage() {
               <UserCircle2 className="h-12 w-12 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight mb-2">{user?.email}</h1>
+              <h1 className="text-3xl font-bold tracking-tight mb-2">{user.email}</h1>
               <div className="flex gap-6 text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <Settings2 className="h-4 w-4" />
@@ -141,7 +153,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4" />
-                  <span>Joined {new Date(user?.createdAt || '').toLocaleDateString()}</span>
+                  <span>Joined {new Date(user.createdAt || '').toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -261,6 +273,20 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
+              ) : chatbotsError ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <BookOpen className="h-12 w-12 text-destructive mb-4" />
+                  <p className="text-lg font-medium mb-2">Error loading projects</p>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    {chatbotsError instanceof Error ? chatbotsError.message : 'Failed to load projects'}
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/chatbot-configs"] })}
+                  >
+                    Try Again
+                  </Button>
+                </div>
               ) : chatbots && chatbots.length > 0 ? (
                 <div className="space-y-4">
                   {chatbots.map((config) => (
@@ -276,7 +302,7 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" asChild>
-                          <a href={`/wizard?config=${config.id}`}>Edit</a>
+                          <a href={`/wizard/new?config=${config.id}`}>Edit</a>
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
@@ -319,7 +345,7 @@ export default function ProfilePage() {
                     Start by creating a new chatbot configuration
                   </p>
                   <Button asChild>
-                    <a href="/wizard">Create New Project</a>
+                    <a href="/wizard/new">Create New Project</a>
                   </Button>
                 </div>
               )}
