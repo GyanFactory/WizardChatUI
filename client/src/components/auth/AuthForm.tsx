@@ -48,6 +48,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
   });
 
   const onSubmit = async (values: FormValues) => {
+    console.log("Form submitted with values:", values);
     try {
       if (mode === "register") {
         if (values.password !== values.confirmPassword) {
@@ -61,6 +62,7 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
+              console.log("Registration successful");
               toast({
                 title: "Registration successful",
                 description: "Please check your email to verify your account.",
@@ -71,22 +73,24 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
           }
         );
       } else {
+        console.log("Attempting login...");
         await loginMutation.mutateAsync(
           { email: values.email, password: values.password },
           {
             onSuccess: () => {
+              console.log("Login successful");
               toast({
                 title: "Login successful",
                 description: "Welcome back!",
               });
               form.reset();
-              // Immediately call onSuccess callback after successful login
               onSuccess();
             },
           }
         );
       }
     } catch (error) {
+      console.error("Auth error:", error);
       const errorMessage = error instanceof Error ? error.message : "An error occurred";
       toast({
         title: mode === "register" ? "Registration failed" : "Login failed",
@@ -113,7 +117,13 @@ export default function AuthForm({ onSuccess }: AuthFormProps) {
       </TabsList>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+        <form 
+          onSubmit={(e) => {
+            console.log("Form submission event triggered");
+            form.handleSubmit(onSubmit)(e);
+          }} 
+          className="space-y-4 mt-4"
+        >
           <FormField
             control={form.control}
             name="email"
