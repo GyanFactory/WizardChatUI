@@ -88,21 +88,41 @@ export default function DocumentUpload({
     }
   };
 
-  const handleValidateApiKey = async () => {
-    if (await checkAPIKey(apiKey, selectedModel)) {
-      setShowApiKeyDialog(false);
-      onModelSelect(selectedModel, apiKey);
-    }
-  };
-
-  const handleModelSelect = (model: string) => {
+  // Update the handleModelSelect function
+  const handleModelSelect = async (model: string) => {
     setSelectedModel(model);
     if (model !== "opensource") {
       setShowApiKeyDialog(true);
+      // Reset API key when changing models
+      setApiKey("");
+      // Reset model selection in parent until API key is validated
+      onModelSelect("opensource");
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
       onModelSelect("opensource");
+    }
+  };
+
+  // Update the handleValidateApiKey function
+  const handleValidateApiKey = async () => {
+    if (!apiKey.trim()) {
+      toast({
+        title: "API Key Required",
+        description: `Please enter your ${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API key`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const isValid = await checkAPIKey(apiKey, selectedModel);
+    if (isValid) {
+      setShowApiKeyDialog(false);
+      onModelSelect(selectedModel, apiKey);
+      toast({
+        title: "Success",
+        description: `${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API key validated successfully`,
+      });
     }
   };
 
@@ -201,14 +221,25 @@ export default function DocumentUpload({
             </button>
           </div>
 
+          {/* Update the API key input section in the render */}
           {showApiKeyDialog && (
             <div className="space-y-4">
+              <Label>
+                {selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API Key
+                <span className="text-red-500">*</span>
+              </Label>
               <Input
                 type="password"
                 placeholder={`Enter ${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API Key`}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
+                className="font-mono"
               />
+              <div className="text-sm text-gray-500">
+                {selectedModel === "huggingface" && (
+                  <p>Enter your Hugging Face API key to use their models for Q&A generation.</p>
+                )}
+              </div>
               <button 
                 className={`w-full px-4 py-2 rounded-md ${
                   !apiKey.trim() 

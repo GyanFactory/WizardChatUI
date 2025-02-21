@@ -171,7 +171,33 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
     });
   } else {
     if (!apiKey) {
-      throw new Error(`${model} API key is required`);
+      throw new Error(`${model.charAt(0).toUpperCase() + model.slice(1)} API key is required`);
+    }
+
+    const decryptedKey = decryptApiKey(apiKey);
+
+    // Validate key before proceeding
+    let isValid = false;
+    try {
+      switch (model) {
+        case "openai":
+          const openAiQuota = await getOpenAIQuota(decryptedKey);
+          isValid = openAiQuota.valid;
+          break;
+        case "huggingface":
+          isValid = await validateHuggingFaceKey(decryptedKey);
+          break;
+        case "deepseek":
+          isValid = await validateDeepSeekKey(decryptedKey);
+          break;
+      }
+    } catch (error) {
+      console.error(`Failed to validate ${model} API key:`, error);
+      throw new Error(`Invalid ${model} API key. Please check your credentials and try again.`);
+    }
+
+    if (!isValid) {
+      throw new Error(`Invalid ${model} API key. Please check your credentials and try again.`);
     }
 
     const systemPrompt = `You are a knowledgeable expert helping users understand a document. Based on the provided context: "${context}", analyze the document and create natural, conversational Q&A pairs.
@@ -214,7 +240,7 @@ A: [Clear, comprehensive answer]`;
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`
+              'Authorization': `Bearer ${decryptedKey}`
             },
             body: JSON.stringify({
               model: "gpt-3.5-turbo-16k",
@@ -234,7 +260,7 @@ A: [Clear, comprehensive answer]`;
           response = await fetch('https://api-inference.huggingface.co/models/facebook/bart-large-cnn', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${apiKey}`,
+              'Authorization': `Bearer ${decryptedKey}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -252,7 +278,7 @@ A: [Clear, comprehensive answer]`;
           response = await fetch('https://api.deepseek.com/v1/chat/completions', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${apiKey}`,
+              'Authorization': `Bearer ${decryptedKey}`,
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
