@@ -83,18 +83,18 @@ export default function DocumentUpload({
   const handleValidateApiKey = async () => {
     if (await checkAPIKey(apiKey)) {
       setShowApiKeyDialog(false);
-      onModelSelect(selectedModel, apiKey);
+      onModelSelect("openai", apiKey); 
     }
   };
 
   const handleModelSelect = (model: string) => {
     setSelectedModel(model);
-    if (model !== "opensource") {
+    if (model === "openai") {
       setShowApiKeyDialog(true);
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
-      onModelSelect(model);
+      onModelSelect("opensource"); 
     }
   };
 

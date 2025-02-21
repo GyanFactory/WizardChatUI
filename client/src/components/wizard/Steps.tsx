@@ -91,14 +91,17 @@ export default function Steps() {
 
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("model", selectedModel);
+      formData.append("model", selectedModel); 
       formData.append("context", context);
       formData.append("projectId", projectId.toString());
 
+      // Only append API key if model is OpenAI
       if (selectedModel === "openai" && apiKey) {
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
+
+      console.log("Uploading document with model:", selectedModel); 
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -141,7 +144,7 @@ export default function Steps() {
 
   const validateStep = async () => {
     switch (currentStep) {
-      case 0: // CompanyInfo
+      case 0: 
         const companyInfoComponent = document.querySelector('#companyName');
         if (!companyName.trim()) {
           toast({
@@ -159,7 +162,7 @@ export default function Steps() {
           return false;
         }
         break;
-      case 1: // Document Upload
+      case 1: 
         if (!projectId) {
           toast({
             title: "Project Required",
@@ -184,7 +187,7 @@ export default function Steps() {
           });
           return false;
         }
-        // Upload the document when moving to the next step
+        
         return await uploadDocument();
     }
     return true;
@@ -207,7 +210,6 @@ export default function Steps() {
 
   const handleLoginSuccess = () => {
     setShowAuthDialog(false);
-    // Wait for the auth state to be updated
     setTimeout(() => {
       if (user) {
         handleNext();
@@ -227,6 +229,7 @@ export default function Steps() {
           onFileSelect={setSelectedFile}
           onContextChange={setContext}
           onModelSelect={(model: string, key?: string) => {
+            console.log("Model selected:", model); 
             setSelectedModel(model);
             setApiKey(key);
           }}
