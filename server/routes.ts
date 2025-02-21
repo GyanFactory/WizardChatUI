@@ -458,6 +458,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.sendFile(widgetPath);
   });
 
+  app.post("/api/projects", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { name, companyName, welcomeMessage } = req.body;
+      const userId = req.user!.id;
+
+      const project = await storage.createProject({
+        userId,
+        name,
+        companyName,
+        welcomeMessage,
+        primaryColor: '#2563eb',
+        fontFamily: 'Inter',
+        position: 'bottom-right',
+        avatarUrl: '/avatars/robot-blue.svg',
+        bubbleStyle: 'rounded',
+        backgroundColor: '#ffffff',
+        buttonStyle: 'solid',
+        status: 'active'
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to create project"
+      });
+    }
+  });
+
+
   const httpServer = createServer(app);
 
   // Initialize WebSocket server

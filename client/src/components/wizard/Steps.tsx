@@ -28,16 +28,26 @@ export default function Steps() {
       if (!user) return null;
       try {
         const response = await apiRequest('POST', '/api/projects', {
-          userId: user.id,
           name: companyName,
           companyName: companyName,
           welcomeMessage: `Welcome to ${companyName} support`,
         });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || 'Failed to create project');
+        }
+
         const data = await response.json();
         setProjectId(data.id);
         return data;
       } catch (error) {
         console.error('Error creating project:', error);
+        toast({
+          title: "Project Creation Failed",
+          description: error instanceof Error ? error.message : "Failed to create project",
+          variant: "destructive"
+        });
         return null;
       }
     },
