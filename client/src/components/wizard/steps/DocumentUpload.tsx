@@ -14,7 +14,11 @@ interface FileWithPath extends File {
   path?: string;
 }
 
-export default function DocumentUpload() {
+interface DocumentUploadProps {
+  projectId: number | null;
+}
+
+export default function DocumentUpload({ projectId }: DocumentUploadProps) {
   const [file, setFile] = useState<FileWithPath | null>(null);
   const { toast } = useToast();
   const { setStep, setCurrentDocument } = useWizardStore();
@@ -26,7 +30,6 @@ export default function DocumentUpload() {
 
   // Function to encrypt API key
   const encryptApiKey = (key: string) => {
-    // Using a static salt for simplicity. In production, this should be a server-side secret
     const salt = "AI_CHATBOT_SALT";
     return CryptoJS.AES.encrypt(key, salt).toString();
   };
@@ -34,9 +37,7 @@ export default function DocumentUpload() {
   // Function to check OpenAI API key
   const checkAPIKey = async (key: string) => {
     try {
-      // Encrypt API key before sending
       const encryptedKey = encryptApiKey(key);
-
       const response = await fetch('/api/validate-openai-key', {
         method: 'POST',
         headers: {
@@ -53,7 +54,6 @@ export default function DocumentUpload() {
 
       if (data.quota) {
         const { total, used } = data.quota;
-        const remaining = total - used;
         toast({
           title: "API Key Valid",
           description: `Monthly Usage: ${used.toLocaleString()} / ${total.toLocaleString()} tokens`,
@@ -66,10 +66,10 @@ export default function DocumentUpload() {
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Invalid API Key",
-        description: error.message,
+        description: error.message || "Failed to validate API key",
         variant: "destructive"
       });
       return false;
@@ -84,6 +84,10 @@ export default function DocumentUpload() {
 
   const uploadMutation = useMutation({
     mutationFn: async (file: FileWithPath) => {
+      if (!projectId) {
+        throw new Error("Project ID is required");
+      }
+
       if (!context.trim()) {
         setContextError("Please provide context about what information you want to extract from the document");
         throw new Error("Context is required");
@@ -93,8 +97,9 @@ export default function DocumentUpload() {
       formData.append("file", file);
       formData.append("model", selectedModel);
       formData.append("context", context);
+      formData.append("projectId", projectId.toString());
+
       if (selectedModel !== "opensource") {
-        // Encrypt API key before sending
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
@@ -112,7 +117,6 @@ export default function DocumentUpload() {
       return response.json();
     },
     onSuccess: (data) => {
-      // Store the document ID in wizard state
       setCurrentDocument(data.document.id);
       toast({
         title: "Success!",
@@ -141,16 +145,25 @@ export default function DocumentUpload() {
 
   const handleUpload = async () => {
     if (!file) return;
-    if (selectedModel !== "opensource") {
-      if (!apiKey) {
-        toast({
-          title: "API Key Required",
-          description: "Please enter the API key for the selected model",
-          variant: "destructive",
-        });
-        return;
-      }
+
+    if (!projectId) {
+      toast({
+        title: "Project Required",
+        description: "Please wait while we create your project",
+        variant: "destructive",
+      });
+      return;
     }
+
+    if (selectedModel !== "opensource" && !apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Please enter the API key for the selected model",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!context.trim()) {
       setContextError("Please provide context about what information you want to extract from the document");
       toast({
@@ -160,6 +173,7 @@ export default function DocumentUpload() {
       });
       return;
     }
+
     uploadMutation.mutate(file);
   };
 
