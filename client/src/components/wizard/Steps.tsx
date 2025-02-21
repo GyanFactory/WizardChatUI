@@ -11,12 +11,38 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/use-auth";
 import AuthForm from "../auth/AuthForm";
+import { apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
 
 export default function Steps() {
   const { currentStep, setStep, companyName } = useWizardStore();
   const { toast } = useToast();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { user } = useAuth();
+  const [projectId, setProjectId] = useState<number | null>(null);
+
+  // Query to fetch or create project
+  const { data: project } = useQuery({
+    queryKey: ['project', user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      try {
+        const response = await apiRequest('POST', '/api/projects', {
+          userId: user.id,
+          name: companyName,
+          companyName: companyName,
+          welcomeMessage: `Welcome to ${companyName} support`,
+        });
+        const data = await response.json();
+        setProjectId(data.id);
+        return data;
+      } catch (error) {
+        console.error('Error creating project:', error);
+        return null;
+      }
+    },
+    enabled: !!user && !!companyName,
+  });
 
   const stepComponents = [
     CompanyInfo,
@@ -43,10 +69,18 @@ export default function Steps() {
           }
           return false;
         }
-        break;
-      case 3: // Before showing embed code
         if (!user) {
           setShowAuthDialog(true);
+          return false;
+        }
+        break;
+      case 1: // Document Upload
+        if (!projectId) {
+          toast({
+            title: "Project Required",
+            description: "Please wait while we create your project",
+            variant: "destructive",
+          });
           return false;
         }
         break;
@@ -69,16 +103,14 @@ export default function Steps() {
   };
 
   const handleLoginSuccess = () => {
-    // Close the dialog
     setShowAuthDialog(false);
     // Wait for the auth state to be updated
     setTimeout(() => {
       if (user) {
-        // Only proceed to next step if user is authenticated
         handleNext();
         toast({
           title: "Success",
-          description: "You're now logged in and can continue with the setup",
+          description: "You're now logged in and we're setting up your project",
         });
       }
     }, 100);
@@ -87,7 +119,7 @@ export default function Steps() {
   return (
     <div>
       <div className="min-h-[400px]">
-        <CurrentStepComponent />
+        <CurrentStepComponent projectId={projectId} />
       </div>
 
       <div className="flex justify-between mt-8 pt-4 border-t">

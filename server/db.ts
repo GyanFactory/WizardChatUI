@@ -11,13 +11,7 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Configure the pool with proper error handling and reconnection
-const pool = new Pool({ 
-  connectionString: process.env.DATABASE_URL,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait before timing out when connecting a new client
-});
+export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Add error handler to the pool
 pool.on('error', (err, client) => {
@@ -25,7 +19,7 @@ pool.on('error', (err, client) => {
 });
 
 // Create db instance with schema
-export const db = drizzle(pool, { schema });
+export const db = drizzle({ client: pool, schema });
 
 // Export pool for potential direct usage
 export { pool };
