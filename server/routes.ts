@@ -119,7 +119,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
       const qaProcess = spawn("python", [
         path.join(process.cwd(), "server/services/qa_generator.py"),
         text,
-        context // Pass context to Python script
+        context
       ]);
 
       let output = '';
@@ -156,7 +156,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
       // Process text in larger chunks for better context
       const chunks = text.split(/\n\s*\n/).filter(chunk => {
         const trimmed = chunk.trim();
-        return trimmed.length >= 100 && trimmed.length <= 2000; // Increased chunk size
+        return trimmed.length >= 100 && trimmed.length <= 2000;
       });
 
       console.log(`Processing ${chunks.length} chunks with OpenAI`);
@@ -164,9 +164,30 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
       let retryCount = 0;
       const maxRetries = 3;
 
-      const systemPrompt = context
-        ? `You are an expert at creating comprehensive Q&A pairs from documents. Focus on extracting information about: ${context}. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`
-        : `You are an expert at creating comprehensive Q&A pairs from documents. For each text chunk, generate 2-3 specific, detailed questions and their complete answers. Focus on key information, technical details, and important facts. Each Q&A pair should be informative and self-contained. Format your response exactly as: 'Q: [specific question]\nA: [detailed answer]'`;
+      const systemPrompt = `You are an expert at creating comprehensive Q&A pairs from documents. Focus on extracting information about: ${context}.
+
+For each text chunk, generate 3-4 diverse questions and detailed answers. Include:
+1. Factual questions that test knowledge of specific details
+2. Conceptual questions that assess understanding of key concepts
+3. Analytical questions that require connecting multiple pieces of information
+4. When appropriate, include how/why questions that explore processes or reasoning
+
+Make each Q&A pair:
+- Self-contained and informative
+- Clear and precise
+- Include relevant context from the document
+- Vary in complexity (some straightforward, some requiring deeper analysis)
+
+Format your response exactly as:
+Q: [specific question]
+A: [detailed answer]
+
+For example:
+Q: What are the key components of X?
+A: The key components of X include [detailed explanation with specifics from the text]
+
+Q: How does process Y work, and why is it important?
+A: Process Y works by [step-by-step explanation], which is important because [reasoning from the text]`;
 
       for (const chunk of chunks) {
         try {
@@ -192,7 +213,9 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
                 }
               ],
               temperature: 0.7,
-              max_tokens: 1000 // Increased token limit for more detailed responses
+              max_tokens: 1500,
+              presence_penalty: 0.1,
+              frequency_penalty: 0.1
             })
           });
 
@@ -228,7 +251,6 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
           }
         } catch (error) {
           console.error("Error processing chunk:", error);
-          // Instead of generating basic QA, we'll skip problematic chunks
           continue;
         }
       }
