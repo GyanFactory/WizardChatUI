@@ -153,36 +153,39 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
     }
 
     try {
-      const systemPrompt = `You are an expert at creating comprehensive Q&A pairs from documents. Your task is to analyze the following document and generate a diverse set of questions and detailed answers based on the context: ${context}.
+      const systemPrompt = `You are a knowledgeable expert helping users understand a document. Based on the provided context: "${context}", analyze the document and create natural, conversational Q&A pairs.
 
-Instructions for Q&A Generation:
+Generate questions that a real person would ask when trying to understand this document. Focus on:
 
-1. Generate questions that cover:
-   - Key concepts and definitions
-   - Important processes and procedures
-   - Relationships between different concepts
-   - Problem-solving scenarios
-   - Real-world applications
-   - Critical analysis and implications
+1. Essential Information:
+   - Key concepts that everyone should know
+   - Critical processes or procedures
+   - Important relationships and dependencies
+   - Real-world applications and implications
 
-2. For each question:
-   - Make it clear and specific
-   - Ensure the answer is comprehensive and accurate
-   - Include relevant context from the document
-   - Vary the complexity level (basic understanding to advanced analysis)
+2. Make questions sound natural and conversational:
+   - Instead of "What is X?", use "Could you explain how X works?"
+   - Instead of "How is Y relevant?", use "Why is Y important for this process?"
+   - Ask questions that build on previous knowledge
+   - Include follow-up questions when relevant
 
-3. Question types to include:
-   - Factual questions that test knowledge
-   - Conceptual questions that assess understanding
-   - Application questions that test practical knowledge
-   - Analysis questions that require critical thinking
-   - Integration questions that connect multiple concepts
+3. Make answers:
+   - Clear and easy to understand
+   - Comprehensive but concise
+   - Include specific examples from the text
+   - Connect different parts of the document when relevant
 
-Format each Q&A pair exactly as:
-Q: [Question]
-A: [Comprehensive answer]
+4. Mix different types of questions:
+   - Straightforward clarification questions
+   - Deep-dive questions about specific topics
+   - Questions about practical applications
+   - Questions that explore relationships between concepts
 
-Note: Generate approximately 15-20 high-quality Q&A pairs that thoroughly cover the document's content.`;
+Format each Q&A pair as:
+Q: [Natural, conversational question]
+A: [Clear, comprehensive answer]
+
+Generate 15-20 high-quality Q&A pairs that cover the key aspects of the document while maintaining a natural, conversational flow.`;
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
@@ -191,7 +194,7 @@ Note: Generate approximately 15-20 high-quality Q&A pairs that thoroughly cover 
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "gpt-3.5-turbo-16k", // Using the 16k model for longer context
+          model: "gpt-3.5-turbo-16k",
           messages: [
             {
               role: "system",
@@ -202,10 +205,10 @@ Note: Generate approximately 15-20 high-quality Q&A pairs that thoroughly cover 
               content: text
             }
           ],
-          temperature: 0.7,
+          temperature: 0.8, // Slightly increased for more natural language
           max_tokens: 4000,
-          presence_penalty: 0.1,
-          frequency_penalty: 0.1
+          presence_penalty: 0.2, // Increased to encourage more diverse questions
+          frequency_penalty: 0.2 // Increased to avoid repetitive patterns
         })
       });
 
