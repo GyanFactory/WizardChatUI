@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import AuthForm from "../auth/AuthForm";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
+import CryptoJS from 'crypto-js';
 
 interface FileWithPath extends File {
   path?: string;
@@ -67,6 +68,12 @@ export default function Steps() {
     enabled: !!user && !!companyName,
   });
 
+  // Function to encrypt API key
+  const encryptApiKey = (key: string) => {
+    const salt = "AI_CHATBOT_SALT";
+    return CryptoJS.AES.encrypt(key, salt).toString();
+  };
+
   const uploadDocument = async () => {
     if (!selectedFile || !projectId) return false;
 
@@ -89,7 +96,8 @@ export default function Steps() {
       formData.append("projectId", projectId.toString());
 
       if (selectedModel === "openai" && apiKey) {
-        formData.append("apiKey", apiKey);
+        const encryptedKey = encryptApiKey(apiKey);
+        formData.append("apiKey", encryptedKey);
       }
 
       const response = await fetch('/api/documents/upload', {
@@ -164,6 +172,14 @@ export default function Steps() {
           toast({
             title: "File Required",
             description: "Please select a PDF file to upload",
+            variant: "destructive",
+          });
+          return false;
+        }
+        if (selectedModel === "openai" && !apiKey) {
+          toast({
+            title: "API Key Required",
+            description: "Please enter and validate your OpenAI API key",
             variant: "destructive",
           });
           return false;
