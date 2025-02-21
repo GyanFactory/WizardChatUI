@@ -114,7 +114,7 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
   }
 
   if (model === "opensource") {
-    // Use simple rule-based QA generation with context
+    // Use the existing Python script for opensource model
     return new Promise((resolve, reject) => {
       const qaProcess = spawn("python", [
         path.join(process.cwd(), "server/services/qa_generator.py"),
@@ -153,105 +153,83 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
     }
 
     try {
-      // Process text in larger chunks for better context
-      const chunks = text.split(/\n\s*\n/).filter(chunk => {
-        const trimmed = chunk.trim();
-        return trimmed.length >= 100 && trimmed.length <= 2000;
+      const systemPrompt = `You are an expert at creating comprehensive Q&A pairs from documents. Your task is to analyze the following document and generate a diverse set of questions and detailed answers based on the context: ${context}.
+
+Instructions for Q&A Generation:
+
+1. Generate questions that cover:
+   - Key concepts and definitions
+   - Important processes and procedures
+   - Relationships between different concepts
+   - Problem-solving scenarios
+   - Real-world applications
+   - Critical analysis and implications
+
+2. For each question:
+   - Make it clear and specific
+   - Ensure the answer is comprehensive and accurate
+   - Include relevant context from the document
+   - Vary the complexity level (basic understanding to advanced analysis)
+
+3. Question types to include:
+   - Factual questions that test knowledge
+   - Conceptual questions that assess understanding
+   - Application questions that test practical knowledge
+   - Analysis questions that require critical thinking
+   - Integration questions that connect multiple concepts
+
+Format each Q&A pair exactly as:
+Q: [Question]
+A: [Comprehensive answer]
+
+Note: Generate approximately 15-20 high-quality Q&A pairs that thoroughly cover the document's content.`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          model: "gpt-3.5-turbo-16k", // Using the 16k model for longer context
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt
+            },
+            {
+              role: "user",
+              content: text
+            }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1
+        })
       });
 
-      console.log(`Processing ${chunks.length} chunks with OpenAI`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("OpenAI API error:", response.status, errorText);
+        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      const content = result.choices[0].message.content;
+
+      // Split multiple Q&A pairs
+      const pairs = content.split(/(?=Q:)/).filter(Boolean);
       const qa_pairs = [];
-      let retryCount = 0;
-      const maxRetries = 3;
 
-      const systemPrompt = `You are an expert at creating comprehensive Q&A pairs from documents. Focus on extracting information about: ${context}.
-
-For each text chunk, generate 3-4 diverse questions and detailed answers. Include:
-1. Factual questions that test knowledge of specific details
-2. Conceptual questions that assess understanding of key concepts
-3. Analytical questions that require connecting multiple pieces of information
-4. When appropriate, include how/why questions that explore processes or reasoning
-
-Make each Q&A pair:
-- Self-contained and informative
-- Clear and precise
-- Include relevant context from the document
-- Vary in complexity (some straightforward, some requiring deeper analysis)
-
-Format your response exactly as:
-Q: [specific question]
-A: [detailed answer]
-
-For example:
-Q: What are the key components of X?
-A: The key components of X include [detailed explanation with specifics from the text]
-
-Q: How does process Y work, and why is it important?
-A: Process Y works by [step-by-step explanation], which is important because [reasoning from the text]`;
-
-      for (const chunk of chunks) {
-        try {
-          // Rate limiting delay
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          const response = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-              model: "gpt-3.5-turbo",
-              messages: [
-                {
-                  role: "system",
-                  content: systemPrompt
-                },
-                {
-                  role: "user",
-                  content: chunk
-                }
-              ],
-              temperature: 0.7,
-              max_tokens: 1500,
-              presence_penalty: 0.1,
-              frequency_penalty: 0.1
-            })
+      for (const pair of pairs) {
+        if (pair.includes('Q:') && pair.includes('A:')) {
+          const [question, answer] = pair.split('\nA:');
+          qa_pairs.push({
+            question: question.replace('Q:', '').trim(),
+            answer: answer.trim(),
+            context: context
           });
-
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error("OpenAI API error:", response.status, errorText);
-
-            if (response.status === 429) {
-              if (retryCount < maxRetries) {
-                retryCount++;
-                await new Promise(resolve => setTimeout(resolve, 5000 * retryCount));
-                continue;
-              }
-              throw new Error("Rate limit exceeded after retries");
-            }
-            throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
-          }
-
-          const result = await response.json();
-          const content = result.choices[0].message.content;
-
-          // Split multiple Q&A pairs
-          const pairs = content.split(/(?=Q:)/).filter(Boolean);
-          for (const pair of pairs) {
-            if (pair.includes('Q:') && pair.includes('A:')) {
-              const [question, answer] = pair.split('\nA:');
-              qa_pairs.push({
-                question: question.replace('Q:', '').trim(),
-                answer: answer.trim(),
-                context: chunk
-              });
-            }
-          }
-        } catch (error) {
-          console.error("Error processing chunk:", error);
-          continue;
         }
       }
 
