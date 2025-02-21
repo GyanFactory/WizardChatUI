@@ -1,16 +1,10 @@
 import { 
-  type ChatbotConfig, 
-  type InsertChatbotConfig,
-  type Document,
-  type InsertDocument,
-  type QAItem,
-  type InsertQAItem,
-  users,
-  documents,
-  qaItems,
-  chatbotConfig,
+  type User, type InsertUser,
+  type Project, type InsertProject,
+  type Document, type InsertDocument,
+  type QAItem, type InsertQAItem,
+  users, projects, documents, qaItems,
 } from "@shared/schema";
-import { type User, type InsertUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pkg from 'pg';
@@ -44,19 +38,22 @@ export interface IStorage {
   updateUserPassword(userId: number, newPassword: string): Promise<User>;
   clearUsers(): Promise<void>;
 
-  // ChatbotConfig operations
-  getChatbotConfig(id: number): Promise<ChatbotConfig | undefined>;
-  getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]>;
-  createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig>;
-  updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null>;
+  // Project operations
+  getProject(id: number): Promise<Project | undefined>;
+  getProjectsByUser(userId: number): Promise<Project[]>;
+  createProject(project: InsertProject): Promise<Project>;
+  updateProject(id: number, project: Partial<InsertProject>): Promise<Project>;
+  updateProjectStatus(id: number, status: string): Promise<Project>;
 
   // Document operations
   getDocument(id: number): Promise<Document | undefined>;
+  getDocumentsByProject(projectId: number): Promise<Document[]>;
   createDocument(doc: InsertDocument): Promise<Document>;
   updateDocumentEmbeddings(id: number, embeddings: number[][]): Promise<Document>;
+  updateDocumentStatus(id: number, status: string): Promise<Document>;
 
   // QA operations
-  getQAItems(configId: number): Promise<QAItem[]>;
+  getQAItems(projectId: number): Promise<QAItem[]>;
   getQAItemsByDocument(documentId: number): Promise<QAItem[]>;
   createQAItem(item: InsertQAItem): Promise<QAItem>;
   createQAItems(items: InsertQAItem[]): Promise<QAItem[]>;
@@ -79,27 +76,22 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  // User operations
   async getUser(id: number): Promise<User | undefined> {
-    console.log('Getting user by ID:', id);
     try {
       const results = await db.select().from(users).where(eq(users.id, id));
-      const user = results[0];
-      console.log('Found user:', user ? 'yes' : 'no');
-      return user;
+      return results[0];
     } catch (error) {
-      console.error('Error getting user by ID:', error);
+      console.error('Error getting user:', error);
       throw error;
     }
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalizedEmail = email.toLowerCase().trim();
-    console.log('Getting user by email:', normalizedEmail);
     try {
       const results = await db.select().from(users).where(eq(users.email, normalizedEmail));
-      const user = results[0];
-      console.log('Found user:', user ? 'yes' : 'no');
-      return user;
+      return results[0];
     } catch (error) {
       console.error('Error getting user by email:', error);
       throw error;
@@ -107,12 +99,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByVerificationToken(token: string): Promise<User | undefined> {
-    console.log('Getting user by verification token:', token);
     try {
       const results = await db.select().from(users).where(eq(users.verificationToken, token));
-      const user = results[0];
-      console.log('Found user:', user ? 'yes' : 'no');
-      return user;
+      return results[0];
     } catch (error) {
       console.error('Error getting user by verification token:', error);
       throw error;
@@ -120,7 +109,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
-    console.log('Creating user with email:', insertUser.email);
     try {
       const results = await db.insert(users).values({
         email: insertUser.email.toLowerCase().trim(),
@@ -129,10 +117,7 @@ export class DatabaseStorage implements IStorage {
         isVerified: false,
         createdAt: new Date(),
       }).returning();
-
-      const user = results[0];
-      console.log('Created user:', user);
-      return user;
+      return results[0];
     } catch (error) {
       console.error('Error creating user:', error);
       throw error;
@@ -140,17 +125,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async verifyUser(userId: number): Promise<User> {
-    console.log('Verifying user:', userId);
     try {
       const results = await db
         .update(users)
         .set({ isVerified: true, verificationToken: null })
         .where(eq(users.id, userId))
         .returning();
-
-      const user = results[0];
-      console.log('User verified:', user);
-      return user;
+      return results[0];
     } catch (error) {
       console.error('Error verifying user:', error);
       throw error;
@@ -172,11 +153,68 @@ export class DatabaseStorage implements IStorage {
   }
 
   async clearUsers(): Promise<void> {
-    console.log('Clearing all users from storage');
     try {
       await db.delete(users);
     } catch (error) {
       console.error('Error clearing users:', error);
+      throw error;
+    }
+  }
+
+  // Project operations
+  async getProject(id: number): Promise<Project | undefined> {
+    try {
+      const results = await db.select().from(projects).where(eq(projects.id, id));
+      return results[0];
+    } catch (error) {
+      console.error('Error getting project:', error);
+      throw error;
+    }
+  }
+
+  async getProjectsByUser(userId: number): Promise<Project[]> {
+    try {
+      return await db.select().from(projects).where(eq(projects.userId, userId));
+    } catch (error) {
+      console.error('Error getting projects by user:', error);
+      throw error;
+    }
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    try {
+      const results = await db.insert(projects).values(project).returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error creating project:', error);
+      throw error;
+    }
+  }
+
+  async updateProject(id: number, project: Partial<InsertProject>): Promise<Project> {
+    try {
+      const results = await db
+        .update(projects)
+        .set(project)
+        .where(eq(projects.id, id))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating project:', error);
+      throw error;
+    }
+  }
+
+  async updateProjectStatus(id: number, status: string): Promise<Project> {
+    try {
+      const results = await db
+        .update(projects)
+        .set({ status })
+        .where(eq(projects.id, id))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating project status:', error);
       throw error;
     }
   }
@@ -192,13 +230,23 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getDocumentsByProject(projectId: number): Promise<Document[]> {
+    try {
+      return await db.select().from(documents).where(eq(documents.projectId, projectId));
+    } catch (error) {
+      console.error('Error getting documents by project:', error);
+      throw error;
+    }
+  }
+
   async createDocument(doc: InsertDocument): Promise<Document> {
     try {
-      console.log('Creating document:', doc);
-      const results = await db.insert(documents).values(doc).returning();
-      const document = results[0];
-      console.log('Created document:', document);
-      return document;
+      const results = await db.insert(documents).values({
+        ...doc,
+        processingStatus: 'pending',
+        createdAt: new Date(),
+      }).returning();
+      return results[0];
     } catch (error) {
       console.error('Error creating document:', error);
       throw error;
@@ -209,7 +257,10 @@ export class DatabaseStorage implements IStorage {
     try {
       const results = await db
         .update(documents)
-        .set({ embeddings })
+        .set({ 
+          embeddings,
+          processingStatus: 'completed'
+        })
         .where(eq(documents.id, id))
         .returning();
       return results[0];
@@ -219,10 +270,24 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // QA operations
-  async getQAItems(configId: number): Promise<QAItem[]> {
+  async updateDocumentStatus(id: number, status: string): Promise<Document> {
     try {
-      return await db.select().from(qaItems).where(eq(qaItems.configId, configId));
+      const results = await db
+        .update(documents)
+        .set({ processingStatus: status })
+        .where(eq(documents.id, id))
+        .returning();
+      return results[0];
+    } catch (error) {
+      console.error('Error updating document status:', error);
+      throw error;
+    }
+  }
+
+  // QA operations
+  async getQAItems(projectId: number): Promise<QAItem[]> {
+    try {
+      return await db.select().from(qaItems).where(eq(qaItems.projectId, projectId));
     } catch (error) {
       console.error('Error getting QA items:', error);
       throw error;
@@ -250,9 +315,7 @@ export class DatabaseStorage implements IStorage {
 
   async createQAItems(items: InsertQAItem[]): Promise<QAItem[]> {
     try {
-      console.log('Creating QA items:', items.length);
       const results = await db.insert(qaItems).values(items).returning();
-      console.log('Created QA items:', results.length);
       return results;
     } catch (error) {
       console.error('Error creating QA items:', error);
@@ -279,50 +342,6 @@ export class DatabaseStorage implements IStorage {
       await db.delete(qaItems).where(eq(qaItems.id, id));
     } catch (error) {
       console.error('Error deleting QA item:', error);
-      throw error;
-    }
-  }
-
-  // Chatbot config operations
-  async getChatbotConfig(id: number): Promise<ChatbotConfig | undefined> {
-    try {
-      const results = await db.select().from(chatbotConfig).where(eq(chatbotConfig.id, id));
-      return results[0];
-    } catch (error) {
-      console.error('Error getting chatbot config:', error);
-      throw error;
-    }
-  }
-
-  async getChatbotConfigsByUser(userId: number): Promise<ChatbotConfig[]> {
-    try {
-      return await db.select().from(chatbotConfig).where(eq(chatbotConfig.userId, userId));
-    } catch (error) {
-      console.error('Error getting chatbot configs:', error);
-      throw error;
-    }
-  }
-
-  async createChatbotConfig(config: InsertChatbotConfig): Promise<ChatbotConfig> {
-    try {
-      const results = await db.insert(chatbotConfig).values(config).returning();
-      return results[0];
-    } catch (error) {
-      console.error('Error creating chatbot config:', error);
-      throw error;
-    }
-  }
-
-  async updateChatbotConfig(id: number, config: Partial<InsertChatbotConfig>): Promise<ChatbotConfig | null> {
-    try {
-      const results = await db
-        .update(chatbotConfig)
-        .set(config)
-        .where(eq(chatbotConfig.id, id))
-        .returning();
-      return results[0] || null;
-    } catch (error) {
-      console.error('Error updating chatbot config:', error);
       throw error;
     }
   }
