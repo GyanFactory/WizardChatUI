@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Upload, File, X, Loader2 } from "lucide-react";
+import { Upload, File, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,11 +38,25 @@ export default function DocumentUpload({
     return CryptoJS.AES.encrypt(key, salt).toString();
   };
 
-  // Function to check OpenAI API key
-  const checkAPIKey = async (key: string) => {
+  // Function to check API keys
+  const checkAPIKey = async (key: string, model: string) => {
     try {
       const encryptedKey = encryptApiKey(key);
-      const response = await fetch('/api/validate-openai-key', {
+      let endpoint = '';
+
+      switch(model) {
+        case 'openai':
+          endpoint = '/api/validate-openai-key';
+          break;
+        case 'huggingface':
+          endpoint = '/api/validate-huggingface-key';
+          break;
+        case 'deepseek':
+          endpoint = '/api/validate-deepseek-key';
+          break;
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -56,18 +70,12 @@ export default function DocumentUpload({
         throw new Error(data.error || 'Invalid API key');
       }
 
-      if (data.quota) {
-        const { total, used } = data.quota;
-        toast({
-          title: "API Key Valid",
-          description: `Monthly Usage: ${used.toLocaleString()} / ${total.toLocaleString()} tokens`,
-        });
-      } else {
-        toast({
-          title: "API Key Valid",
-          description: "Unable to fetch quota information, but the key is valid",
-        });
-      }
+      toast({
+        title: "API Key Valid",
+        description: data.quota ? 
+          `Monthly Usage: ${data.quota.used.toLocaleString()} / ${data.quota.total.toLocaleString()} tokens` :
+          "API key validated successfully",
+      });
 
       return true;
     } catch (error: any) {
@@ -81,20 +89,20 @@ export default function DocumentUpload({
   };
 
   const handleValidateApiKey = async () => {
-    if (await checkAPIKey(apiKey)) {
+    if (await checkAPIKey(apiKey, selectedModel)) {
       setShowApiKeyDialog(false);
-      onModelSelect("openai", apiKey); 
+      onModelSelect(selectedModel, apiKey);
     }
   };
 
   const handleModelSelect = (model: string) => {
     setSelectedModel(model);
-    if (model === "openai") {
+    if (model !== "opensource") {
       setShowApiKeyDialog(true);
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
-      onModelSelect("opensource"); 
+      onModelSelect("opensource");
     }
   };
 
@@ -138,7 +146,7 @@ export default function DocumentUpload({
               Context <span className="text-red-500">*</span>
             </Label>
             <Textarea
-              placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a resume, I want to extract information about work experience, skills, and projects.'"
+              placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a technical manual, I want to extract information about installation procedures and troubleshooting steps.'"
               value={context}
               onChange={(e) => {
                 setContext(e.target.value);
@@ -150,7 +158,7 @@ export default function DocumentUpload({
             {contextError && <p className="text-sm text-red-500">{contextError}</p>}
           </div>
 
-          <div className="flex gap-4 justify-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <button
               className={`px-4 py-2 rounded-md transition-colors ${
                 selectedModel === "opensource" 
@@ -159,7 +167,7 @@ export default function DocumentUpload({
               }`}
               onClick={() => handleModelSelect("opensource")}
             >
-              Open Source Model
+              Open Source
             </button>
             <button
               className={`px-4 py-2 rounded-md transition-colors ${
@@ -171,13 +179,33 @@ export default function DocumentUpload({
             >
               OpenAI
             </button>
+            <button
+              className={`px-4 py-2 rounded-md transition-colors ${
+                selectedModel === "huggingface" 
+                  ? "bg-primary text-white" 
+                  : "bg-gray-100 hover:bg-gray-200"
+              }`}
+              onClick={() => handleModelSelect("huggingface")}
+            >
+              Hugging Face
+            </button>
+            <button
+              className={`px-4 py-2 rounded-md transition-colors ${
+                selectedModel === "deepseek" 
+                  ? "bg-primary text-white" 
+                  : "bg-gray-100 hover:bg-gray-200"
+              }`}
+              onClick={() => handleModelSelect("deepseek")}
+            >
+              DeepSeek
+            </button>
           </div>
 
           {showApiKeyDialog && (
             <div className="space-y-4">
               <Input
                 type="password"
-                placeholder="Enter API Key"
+                placeholder={`Enter ${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API Key`}
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />

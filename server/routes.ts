@@ -33,7 +33,6 @@ function decryptApiKey(encryptedKey: string): string {
 // Add after decryptApiKey function
 async function getOpenAIQuota(apiKey: string): Promise<{ valid: boolean; quota?: { total: number; used: number } }> {
   try {
-    // First verify if the API key is valid
     const modelsResponse = await fetch('https://api.openai.com/v1/models', {
       headers: {
         'Authorization': `Bearer ${apiKey}`
@@ -44,13 +43,8 @@ async function getOpenAIQuota(apiKey: string): Promise<{ valid: boolean; quota?:
       return { valid: false };
     }
 
-    // Get billing information for the current month
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
     const usageResponse = await fetch(
-      `https://api.openai.com/v1/usage?start_date=${firstDay.toISOString().split('T')[0]}&end_date=${lastDay.toISOString().split('T')[0]}`,
+      `https://api.openai.com/v1/usage?start_date=${new Date().toISOString().split('T')[0]}`,
       {
         headers: {
           'Authorization': `Bearer ${apiKey}`
@@ -59,7 +53,6 @@ async function getOpenAIQuota(apiKey: string): Promise<{ valid: boolean; quota?:
     );
 
     if (!usageResponse.ok) {
-      // Key is valid but couldn't get quota
       return { valid: true };
     }
 
@@ -74,6 +67,36 @@ async function getOpenAIQuota(apiKey: string): Promise<{ valid: boolean; quota?:
   } catch (error) {
     console.error('Error checking OpenAI quota:', error);
     return { valid: false };
+  }
+}
+
+// Add Hugging Face API validation
+async function validateHuggingFaceKey(apiKey: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://api-inference.huggingface.co/models/facebook/bart-large-cnn', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Error validating Hugging Face API key:', error);
+    return false;
+  }
+}
+
+// Add DeepSeek API validation
+async function validateDeepSeekKey(apiKey: string): Promise<boolean> {
+  try {
+    const response = await fetch('https://api.deepseek.com/v1/models', {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('Error validating DeepSeek API key:', error);
+    return false;
   }
 }
 
@@ -107,14 +130,13 @@ async function extractTextFromPDF(filePath: string): Promise<string> {
   });
 }
 
-// Update the generateQAPairs function to properly handle OpenAI
+// Update the generateQAPairs function to handle multiple models
 async function generateQAPairs(text: string, model: string = "opensource", apiKey?: string, context?: string): Promise<any[]> {
   if (!context?.trim()) {
-    throw new Error("Context is required for both models");
+    throw new Error("Context is required for all models");
   }
 
   if (model === "opensource") {
-    // Use the existing Python script for opensource model
     return new Promise((resolve, reject) => {
       const qaProcess = spawn("python", [
         path.join(process.cwd(), "server/services/qa_generator.py"),
@@ -147,13 +169,12 @@ async function generateQAPairs(text: string, model: string = "opensource", apiKe
         }
       });
     });
-  } else if (model === "openai") {
+  } else {
     if (!apiKey) {
-      throw new Error("OpenAI API key is required");
+      throw new Error(`${model} API key is required`);
     }
 
-    try {
-      const systemPrompt = `You are a knowledgeable expert helping users understand a document. Based on the provided context: "${context}", analyze the document and create natural, conversational Q&A pairs.
+    const systemPrompt = `You are a knowledgeable expert helping users understand a document. Based on the provided context: "${context}", analyze the document and create natural, conversational Q&A pairs.
 
 Generate questions that a real person would ask when trying to understand this document. Focus on:
 
@@ -183,43 +204,93 @@ Generate questions that a real person would ask when trying to understand this d
 
 Format each Q&A pair as:
 Q: [Natural, conversational question]
-A: [Clear, comprehensive answer]
+A: [Clear, comprehensive answer]`;
 
-Generate 15-20 high-quality Q&A pairs that cover the key aspects of the document while maintaining a natural, conversational flow.`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo-16k",
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt
+    try {
+      let response;
+      switch (model) {
+        case "openai":
+          response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
             },
-            {
-              role: "user",
-              content: text
-            }
-          ],
-          temperature: 0.8, // Slightly increased for more natural language
-          max_tokens: 4000,
-          presence_penalty: 0.2, // Increased to encourage more diverse questions
-          frequency_penalty: 0.2 // Increased to avoid repetitive patterns
-        })
-      });
+            body: JSON.stringify({
+              model: "gpt-3.5-turbo-16k",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: text }
+              ],
+              temperature: 0.8,
+              max_tokens: 4000,
+              presence_penalty: 0.2,
+              frequency_penalty: 0.2
+            })
+          });
+          break;
+
+        case "huggingface":
+          response = await fetch('https://api-inference.huggingface.co/models/facebook/bart-large-cnn', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              inputs: [systemPrompt, text],
+              parameters: {
+                max_length: 4000,
+                temperature: 0.8,
+                num_return_sequences: 1
+              }
+            })
+          });
+          break;
+
+        case "deepseek":
+          response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              model: "deepseek-chat",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: text }
+              ],
+              temperature: 0.8,
+              max_tokens: 4000
+            })
+          });
+          break;
+
+        default:
+          throw new Error(`Unsupported model: ${model}`);
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("OpenAI API error:", response.status, errorText);
-        throw new Error(`OpenAI API error: ${response.status} ${errorText}`);
+        console.error(`${model} API error:`, response.status, errorText);
+        throw new Error(`${model} API error: ${response.status} ${errorText}`);
       }
 
       const result = await response.json();
-      const content = result.choices[0].message.content;
+      let content = '';
+
+      switch (model) {
+        case "openai":
+          content = result.choices[0].message.content;
+          break;
+        case "huggingface":
+          content = result[0].generated_text;
+          break;
+        case "deepseek":
+          content = result.choices[0].message.content;
+          break;
+      }
 
       // Split multiple Q&A pairs
       const pairs = content.split(/(?=Q:)/).filter(Boolean);
@@ -238,16 +309,61 @@ Generate 15-20 high-quality Q&A pairs that cover the key aspects of the document
 
       return qa_pairs;
     } catch (error) {
-      console.error("OpenAI API error:", error);
+      console.error(`${model} API error:`, error);
       throw error;
     }
-  } else {
-    throw new Error(`Unsupported model: ${model}`);
   }
 }
 
 export function registerRoutes(app: Express): Server {
-  // Upload PDF and generate Q&A pairs
+  // Add validation endpoints for new APIs
+  app.post("/api/validate-huggingface-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      const decryptedKey = decryptApiKey(apiKey);
+      const isValid = await validateHuggingFaceKey(decryptedKey);
+
+      if (!isValid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({ valid: true });
+    } catch (err) {
+      console.error("Failed to validate Hugging Face key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  app.post("/api/validate-deepseek-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      const decryptedKey = decryptApiKey(apiKey);
+      const isValid = await validateDeepSeekKey(decryptedKey);
+
+      if (!isValid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({ valid: true });
+    } catch (err) {
+      console.error("Failed to validate DeepSeek key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  // Existing routes remain the same
   app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
@@ -255,7 +371,6 @@ export function registerRoutes(app: Express): Server {
       }
 
       try {
-        // First extract text from PDF
         const extractedText = await extractTextFromPDF(req.file.path);
         console.log("Extracted text length:", extractedText.length);
 
@@ -263,7 +378,6 @@ export function registerRoutes(app: Express): Server {
           throw new Error("No text could be extracted from the PDF");
         }
 
-        // Generate QA pairs from the extracted text
         const model = req.body.model || "opensource";
         let apiKey = req.body.apiKey;
         const context = req.body.context;
@@ -274,7 +388,6 @@ export function registerRoutes(app: Express): Server {
         }
 
         if (apiKey) {
-          // Decrypt the API key
           apiKey = decryptApiKey(apiKey);
         }
 
@@ -286,14 +399,12 @@ export function registerRoutes(app: Express): Server {
           throw new Error("No QA pairs could be generated");
         }
 
-        // Store document in storage
         const doc = await storage.createDocument({
           projectId,
           filename: req.file.originalname,
           content: extractedText,
         });
 
-        // Store Q&A pairs
         const storedItems = await storage.createQAItems(
           qaItems.map((item: any) => ({
             projectId,
@@ -304,7 +415,6 @@ export function registerRoutes(app: Express): Server {
           }))
         );
 
-        // Cleanup uploaded file
         fs.unlinkSync(req.file.path);
 
         res.json({
