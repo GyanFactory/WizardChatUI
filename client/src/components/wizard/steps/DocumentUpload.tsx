@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Upload, File, X, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useWizardStore } from "@/store/wizardStore";
-import { useMutation } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import CryptoJS from 'crypto-js';
@@ -16,12 +13,19 @@ interface FileWithPath extends File {
 
 interface DocumentUploadProps {
   projectId: number | null;
+  onFileSelect: (file: FileWithPath | null) => void;
+  onContextChange: (context: string) => void;
+  onModelSelect: (model: string, apiKey?: string) => void;
 }
 
-export default function DocumentUpload({ projectId }: DocumentUploadProps) {
+export default function DocumentUpload({ 
+  projectId, 
+  onFileSelect,
+  onContextChange,
+  onModelSelect,
+}: DocumentUploadProps) {
   const [file, setFile] = useState<FileWithPath | null>(null);
   const { toast } = useToast();
-  const { setStep, setCurrentDocument } = useWizardStore();
   const [selectedModel, setSelectedModel] = useState("opensource");
   const [apiKey, setApiKey] = useState("");
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
@@ -79,59 +83,9 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
   const handleValidateApiKey = async () => {
     if (await checkAPIKey(apiKey)) {
       setShowApiKeyDialog(false);
+      onModelSelect(selectedModel, apiKey);
     }
   };
-
-  const uploadMutation = useMutation({
-    mutationFn: async (file: FileWithPath) => {
-      if (!projectId) {
-        throw new Error("Project ID is required");
-      }
-
-      if (!context.trim()) {
-        setContextError("Please provide context about what information you want to extract from the document");
-        throw new Error("Context is required");
-      }
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("model", selectedModel);
-      formData.append("context", context);
-      formData.append("projectId", projectId.toString());
-
-      if (selectedModel !== "opensource") {
-        const encryptedKey = encryptApiKey(apiKey);
-        formData.append("apiKey", encryptedKey);
-      }
-
-      const response = await fetch('/api/documents/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.details || error.error || 'Upload failed');
-      }
-
-      return response.json();
-    },
-    onSuccess: (data) => {
-      setCurrentDocument(data.document.id);
-      toast({
-        title: "Success!",
-        description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
-      });
-      setStep(2); // Move to Q&A Management step
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleModelSelect = (model: string) => {
     setSelectedModel(model);
@@ -140,41 +94,8 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
+      onModelSelect(model);
     }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-
-    if (!projectId) {
-      toast({
-        title: "Project Required",
-        description: "Please wait while we create your project",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedModel !== "opensource" && !apiKey) {
-      toast({
-        title: "API Key Required",
-        description: "Please enter the API key for the selected model",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!context.trim()) {
-      setContextError("Please provide context about what information you want to extract from the document");
-      toast({
-        title: "Context Required",
-        description: "Please provide context for better Q&A generation",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    uploadMutation.mutate(file);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,6 +118,7 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
         return;
       }
       setFile(selectedFile);
+      onFileSelect(selectedFile);
     }
   };
 
@@ -221,6 +143,7 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
               onChange={(e) => {
                 setContext(e.target.value);
                 setContextError("");
+                onContextChange(e.target.value);
               }}
               className={`h-24 ${contextError ? "border-red-500" : ""}`}
             />
@@ -228,18 +151,26 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
           </div>
 
           <div className="flex gap-4 justify-center">
-            <Button
-              variant={selectedModel === "opensource" ? "default" : "outline"}
+            <button
+              className={`px-4 py-2 rounded-md transition-colors ${
+                selectedModel === "opensource" 
+                  ? "bg-primary text-white" 
+                  : "bg-gray-100 hover:bg-gray-200"
+              }`}
               onClick={() => handleModelSelect("opensource")}
             >
               Open Source Model
-            </Button>
-            <Button
-              variant={selectedModel === "openai" ? "default" : "outline"}
+            </button>
+            <button
+              className={`px-4 py-2 rounded-md transition-colors ${
+                selectedModel === "openai" 
+                  ? "bg-primary text-white" 
+                  : "bg-gray-100 hover:bg-gray-200"
+              }`}
               onClick={() => handleModelSelect("openai")}
             >
               OpenAI
-            </Button>
+            </button>
           </div>
 
           {showApiKeyDialog && (
@@ -250,12 +181,17 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
               />
-              <Button 
+              <button 
+                className={`w-full px-4 py-2 rounded-md ${
+                  !apiKey.trim() 
+                    ? "bg-gray-200 cursor-not-allowed" 
+                    : "bg-primary text-white hover:bg-primary/90"
+                }`}
                 onClick={handleValidateApiKey}
                 disabled={!apiKey.trim()}
               >
                 Validate API Key
-              </Button>
+              </button>
             </div>
           )}
 
@@ -272,6 +208,7 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
               if (droppedFile.type === "application/pdf") {
                 if (droppedFile.size <= 5 * 1024 * 1024) {
                   setFile(droppedFile);
+                  onFileSelect(droppedFile);
                 } else {
                   toast({
                     title: "File too large",
@@ -302,7 +239,6 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
                 className="hidden"
                 accept=".pdf"
                 onChange={handleFileChange}
-                disabled={uploadMutation.isPending}
               />
               <p className="mt-2 text-sm text-gray-500">
                 or drag and drop your file here
@@ -319,37 +255,15 @@ export default function DocumentUpload({ projectId }: DocumentUploadProps) {
                 <File className="h-6 w-6 text-blue-600" />
                 <span className="text-sm font-medium">{file.name}</span>
               </div>
-              <div className="flex items-center gap-2">
-                {!uploadMutation.isPending && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setFile(null)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button
-                  onClick={handleUpload}
-                  disabled={uploadMutation.isPending}
-                >
-                  {uploadMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Upload & Generate Q&A"
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {uploadMutation.isPending && (
-            <div className="text-sm text-gray-600 text-center">
-              <p>Analyzing your document and generating Q&A pairs...</p>
-              <p>This may take a few minutes depending on the document size.</p>
+              <button
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                onClick={() => {
+                  setFile(null);
+                  onFileSelect(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           )}
         </div>

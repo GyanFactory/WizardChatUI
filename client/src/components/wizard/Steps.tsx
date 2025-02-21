@@ -5,7 +5,7 @@ import DocumentUpload from "./steps/DocumentUpload";
 import QAManagement from "./steps/QAManagement";
 import Appearance from "./steps/Appearance";
 import Embed from "./steps/Embed";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,12 +14,21 @@ import AuthForm from "../auth/AuthForm";
 import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
+interface FileWithPath extends File {
+  path?: string;
+}
+
 export default function Steps() {
   const { currentStep, setStep, companyName, welcomeMessage } = useWizardStore();
   const { toast } = useToast();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { user } = useAuth();
   const [projectId, setProjectId] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FileWithPath | null>(null);
+  const [selectedModel, setSelectedModel] = useState("opensource");
+  const [apiKey, setApiKey] = useState<string>();
+  const [context, setContext] = useState("");
 
   // Query to fetch or create project
   const { data: project } = useQuery({
@@ -58,6 +67,60 @@ export default function Steps() {
     enabled: !!user && !!companyName,
   });
 
+  const uploadDocument = async () => {
+    if (!selectedFile || !projectId) return false;
+
+    try {
+      setIsUploading(true);
+
+      if (!context.trim()) {
+        toast({
+          title: "Context Required",
+          description: "Please provide context about what information you want to extract from the document",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("model", selectedModel);
+      formData.append("context", context);
+      formData.append("projectId", projectId.toString());
+
+      if (selectedModel === "openai" && apiKey) {
+        formData.append("apiKey", apiKey);
+      }
+
+      const response = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.details || error.error || 'Upload failed');
+      }
+
+      const data = await response.json();
+      toast({
+        title: "Success!",
+        description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
+      });
+      return true;
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Failed to upload document",
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const stepComponents = [
     CompanyInfo,
     DocumentUpload,
@@ -68,7 +131,7 @@ export default function Steps() {
 
   const CurrentStepComponent = stepComponents[currentStep];
 
-  const validateStep = () => {
+  const validateStep = async () => {
     switch (currentStep) {
       case 0: // CompanyInfo
         const companyInfoComponent = document.querySelector('#companyName');
@@ -97,14 +160,24 @@ export default function Steps() {
           });
           return false;
         }
-        break;
+        if (!selectedFile) {
+          toast({
+            title: "File Required",
+            description: "Please select a PDF file to upload",
+            variant: "destructive",
+          });
+          return false;
+        }
+        // Upload the document when moving to the next step
+        return await uploadDocument();
     }
     return true;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < stepComponents.length - 1) {
-      if (validateStep()) {
+      const isValid = await validateStep();
+      if (isValid) {
         setStep(currentStep + 1);
       }
     }
@@ -133,7 +206,15 @@ export default function Steps() {
   return (
     <div>
       <div className="min-h-[400px]">
-        <CurrentStepComponent projectId={projectId} />
+        <CurrentStepComponent 
+          projectId={projectId}
+          onFileSelect={setSelectedFile}
+          onContextChange={setContext}
+          onModelSelect={(model: string, key?: string) => {
+            setSelectedModel(model);
+            setApiKey(key);
+          }}
+        />
       </div>
 
       <div className="flex justify-between mt-8 pt-4 border-t">
@@ -148,10 +229,19 @@ export default function Steps() {
 
         <Button
           onClick={handleNext}
-          disabled={currentStep === stepComponents.length - 1}
+          disabled={currentStep === stepComponents.length - 1 || isUploading}
         >
-          Next
-          <ArrowRight className="w-4 h-4 ml-2" />
+          {isUploading ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Uploading...
+            </>
+          ) : (
+            <>
+              Next
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </>
+          )}
         </Button>
       </div>
 
