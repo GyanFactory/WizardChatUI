@@ -15,7 +15,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 
 export default function Steps() {
-  const { currentStep, setStep, companyName } = useWizardStore();
+  const { currentStep, setStep, companyName, welcomeMessage } = useWizardStore();
   const { toast } = useToast();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const { user } = useAuth();
@@ -27,10 +27,14 @@ export default function Steps() {
     queryFn: async () => {
       if (!user) return null;
       try {
-        const response = await apiRequest('POST', '/api/projects', {
-          name: companyName,
-          companyName: companyName,
-          welcomeMessage: `Welcome to ${companyName} support`,
+        const response = await apiRequest('/api/projects', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: companyName,
+            companyName: companyName,
+            welcomeMessage: welcomeMessage || `Welcome to ${companyName} support`,
+            status: 'active'
+          })
         });
 
         if (!response.ok) {

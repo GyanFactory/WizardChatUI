@@ -183,7 +183,11 @@ export class DatabaseStorage implements IStorage {
 
   async createProject(project: InsertProject): Promise<Project> {
     try {
-      const results = await db.insert(projects).values(project).returning();
+      const results = await db.insert(projects).values({
+        ...project,
+        status: 'pending',
+        createdAt: new Date(),
+      }).returning();
       return results[0];
     } catch (error) {
       console.error('Error creating project:', error);
