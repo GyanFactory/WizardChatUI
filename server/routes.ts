@@ -324,7 +324,42 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add validation endpoint for OpenAI API key
+  // Add the project creation endpoint
+  app.post("/api/projects", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { name, companyName, welcomeMessage } = req.body;
+      const userId = req.user!.id;
+
+      const project = await storage.createProject({
+        userId,
+        name,
+        companyName,
+        welcomeMessage,
+        primaryColor: '#2563eb',
+        fontFamily: 'Inter',
+        position: 'bottom-right',
+        avatarUrl: '/avatars/robot-blue.svg',
+        bubbleStyle: 'rounded',
+        backgroundColor: '#ffffff',
+        buttonStyle: 'solid',
+        status: 'active'
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to create project"
+      });
+    }
+  });
+
+
+  // Add validation endpoint for OpenAI API key  (This replaces the original)
   app.post("/api/validate-openai-key", async (req, res) => {
     try {
       const { apiKey } = req.body;
@@ -349,6 +384,23 @@ export function registerRoutes(app: Express): Server {
     } catch (err) {
       console.error("Failed to validate OpenAI key:", err);
       res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  // Add chatbot configurations endpoint
+  app.get("/api/chatbot-configs", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const configs = await storage.getProjectsByUser(req.user!.id);
+      res.json(configs);
+    } catch (error) {
+      console.error("Failed to fetch chatbot configs:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch configurations"
+      });
     }
   });
 
