@@ -70,9 +70,72 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-[calc(100vh-3.5rem)] bg-gradient-to-b from-primary/5 via-background to-background">
       <div className="container flex items-center justify-center py-10 md:py-16">
         <div className="grid w-full gap-8 lg:grid-cols-2 lg:gap-16">
+          <div className="hidden flex-col justify-center space-y-8 lg:flex">
+            <div className="space-y-4">
+              <div className="inline-block rounded-lg bg-primary/10 px-3 py-1 text-sm text-primary">
+                Welcome to End User Guide
+              </div>
+              <h1 className="text-4xl font-bold tracking-tight text-primary">
+                Transform Documents into
+                <br />
+                Interactive Knowledge
+              </h1>
+              <p className="text-xl text-muted-foreground">
+                Create intelligent assistants from your documents using advanced AI
+                to deliver instant, accurate answers.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="group relative overflow-hidden rounded-lg border bg-background p-4 transition-colors hover:bg-accent">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50"></div>
+                <div className="relative">
+                  <Bot className="h-6 w-6 text-primary" />
+                  <h3 className="mt-3 font-semibold">Smart AI Chat</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Engage in natural conversations with AI trained on your documents
+                  </p>
+                </div>
+              </div>
+
+              <div className="group relative overflow-hidden rounded-lg border bg-background p-4 transition-colors hover:bg-accent">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50"></div>
+                <div className="relative">
+                  <MessageSquare className="h-6 w-6 text-primary" />
+                  <h3 className="mt-3 font-semibold">Interactive QA</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Get instant answers to questions about your document content
+                  </p>
+                </div>
+              </div>
+
+              <div className="group relative overflow-hidden rounded-lg border bg-background p-4 transition-colors hover:bg-accent">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50"></div>
+                <div className="relative">
+                  <FileText className="h-6 w-6 text-primary" />
+                  <h3 className="mt-3 font-semibold">PDF Processing</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Seamlessly process and analyze PDF documents
+                  </p>
+                </div>
+              </div>
+
+              <div className="group relative overflow-hidden rounded-lg border bg-background p-4 transition-colors hover:bg-accent">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50"></div>
+                <div className="relative">
+                  <Zap className="h-6 w-6 text-primary" />
+                  <h3 className="mt-3 font-semibold">Quick Integration</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Easily embed the guide widget into your website
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex flex-col justify-center">
             <Card className="relative overflow-hidden border-none bg-background/60 shadow-xl backdrop-blur-sm">
               <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent" />
@@ -83,8 +146,7 @@ export default function AuthPage() {
                 <CardDescription className="text-muted-foreground">
                   {activeTab === "login"
                     ? "Enter your credentials to access your account"
-                    : "Sign up for a new account to get started"
-                  }
+                    : "Sign up for a new account to get started"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -257,61 +319,6 @@ export default function AuthPage() {
                 </Tabs>
               </CardContent>
             </Card>
-          </div>
-
-          <div className="hidden lg:block">
-            <div className="flex h-full flex-col justify-center space-y-8">
-              <div className="space-y-4">
-                <h1 className="text-4xl font-bold tracking-tight text-primary">
-                  End User Guide Assistant
-                </h1>
-                <p className="text-xl text-muted-foreground">
-                  Transform your documents into interactive knowledge bases with our
-                  intelligent assistant.
-                </p>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="flex items-start space-x-3 rounded-lg border bg-card p-4 shadow-sm">
-                  <Bot className="h-6 w-6 text-primary" />
-                  <div>
-                    <h3 className="font-semibold">Smart AI Chat</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Engage in natural conversations with AI trained on your documents
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 rounded-lg border bg-card p-4 shadow-sm">
-                  <MessageSquare className="h-6 w-6 text-primary" />
-                  <div>
-                    <h3 className="font-semibold">Interactive QA</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Get instant answers to questions about your document content
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 rounded-lg border bg-card p-4 shadow-sm">
-                  <FileText className="h-6 w-6 text-primary" />
-                  <div>
-                    <h3 className="font-semibold">PDF Processing</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Seamlessly process and analyze PDF documents
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 rounded-lg border bg-card p-4 shadow-sm">
-                  <Zap className="h-6 w-6 text-primary" />
-                  <div>
-                    <h3 className="font-semibold">Quick Integration</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Easily embed the guide widget into your website
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
