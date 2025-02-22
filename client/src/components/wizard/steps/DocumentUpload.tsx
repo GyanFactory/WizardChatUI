@@ -95,8 +95,7 @@ export default function DocumentUpload({
       setShowApiKeyDialog(true);
       // Reset API key when changing models
       setApiKey("");
-      // Reset model selection in parent until API key is validated
-      onModelSelect("opensource");
+      // Important: Do not reset model selection in parent yet
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
@@ -118,6 +117,7 @@ export default function DocumentUpload({
     const isValid = await checkAPIKey(apiKey, selectedModel);
     if (isValid) {
       setShowApiKeyDialog(false);
+      // Only update parent's model selection after successful validation
       onModelSelect(selectedModel, apiKey);
       toast({
         title: "Success",
@@ -221,7 +221,6 @@ export default function DocumentUpload({
             </button>
           </div>
 
-          {/* Update the API key input section in the render */}
           {showApiKeyDialog && (
             <div className="space-y-4">
               <Label>

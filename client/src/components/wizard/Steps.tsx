@@ -92,18 +92,23 @@ export default function Steps() {
 
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("model", selectedModel); // Use the actual selected model
+      formData.append("model", selectedModel);
       formData.append("context", context);
       formData.append("projectId", projectId.toString());
 
       // Only append API key if model is not opensource
       if (selectedModel !== "opensource" && apiKey) {
-        console.log("Uploading with model:", selectedModel); // Debug log
+        console.log("Uploading document with model:", selectedModel, "API Key present:", !!apiKey);
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
 
-      console.log("Uploading document with model:", selectedModel); 
+      // Log the form data for debugging
+      formData.forEach((value, key) => {
+        if (key !== "file" && key !== "apiKey") {
+          console.log(`${key}:`, value);
+        }
+      });
 
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
@@ -116,7 +121,7 @@ export default function Steps() {
       }
 
       const data = await response.json();
-      setQAItems(data.qaItems); // Store QA items
+      setQAItems(data.qaItems);
       toast({
         title: "Success!",
         description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
@@ -190,7 +195,6 @@ export default function Steps() {
           });
           return false;
         }
-
         return await uploadDocument();
     }
     return true;
@@ -232,11 +236,11 @@ export default function Steps() {
           onFileSelect={setSelectedFile}
           onContextChange={setContext}
           onModelSelect={(model: string, key?: string) => {
-            console.log("Model selected:", model); // Debug log
+            console.log("Model selected in Steps:", model, "API Key present:", !!key);
             setSelectedModel(model);
             setApiKey(key);
           }}
-          qaItems={qaItems} // Pass QA items to QAManagement component
+          qaItems={qaItems}
         />
       </div>
 
