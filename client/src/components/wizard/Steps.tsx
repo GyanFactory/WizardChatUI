@@ -30,6 +30,7 @@ export default function Steps() {
   const [selectedModel, setSelectedModel] = useState("opensource");
   const [apiKey, setApiKey] = useState<string>();
   const [context, setContext] = useState("");
+  const [qaItems, setQAItems] = useState<any[]>([]);
 
   // Query to fetch or create project
   const { data: project } = useQuery({
@@ -95,8 +96,8 @@ export default function Steps() {
       formData.append("context", context);
       formData.append("projectId", projectId.toString());
 
-      // Only append API key if model is OpenAI
-      if (selectedModel === "openai" && apiKey) {
+      // Only append API key if model is not opensource
+      if (selectedModel !== "opensource" && apiKey) {
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
@@ -114,6 +115,7 @@ export default function Steps() {
       }
 
       const data = await response.json();
+      setQAItems(data.qaItems); // Store QA items
       toast({
         title: "Success!",
         description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
@@ -179,15 +181,15 @@ export default function Steps() {
           });
           return false;
         }
-        if (selectedModel === "openai" && !apiKey) {
+        if (selectedModel !== "opensource" && !apiKey) {
           toast({
             title: "API Key Required",
-            description: "Please enter and validate your OpenAI API key",
+            description: `Please enter and validate your ${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API key`,
             variant: "destructive",
           });
           return false;
         }
-        
+
         return await uploadDocument();
     }
     return true;
@@ -233,6 +235,7 @@ export default function Steps() {
             setSelectedModel(model);
             setApiKey(key);
           }}
+          qaItems={qaItems} // Pass QA items to QAManagement component
         />
       </div>
 
