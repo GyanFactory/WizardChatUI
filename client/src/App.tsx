@@ -15,6 +15,7 @@ function Router() {
     <Switch>
       <Route path="/auth" component={AuthPage} />
       <Route path="/" component={WizardPage} />
+      <Route path="/wizard" component={WizardPage} />
       <Route path="/profile" component={ProfilePage} />
       <Route path="/verify-email" component={VerifyEmailPage} />
       <Route component={NotFound} />
