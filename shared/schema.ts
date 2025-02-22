@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   verificationToken: text("verification_token"),
   isVerified: boolean("is_verified").default(false),
+  isAdmin: boolean("is_admin").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -26,7 +27,27 @@ export const projects = pgTable("projects", {
   bubbleStyle: text("bubble_style").notNull().default('modern'),
   backgroundColor: text("background_color").notNull().default('#ffffff'),
   buttonStyle: text("button_style").notNull().default('rounded'),
+  isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const modelSettings = pgTable("model_settings", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  isEnabled: boolean("is_enabled").default(true),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const usageStats = pgTable("usage_stats", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  projectId: integer("project_id").references(() => projects.id).notNull(),
+  modelId: integer("model_id").references(() => modelSettings.id).notNull(),
+  requestCount: integer("request_count").default(0),
+  tokensUsed: integer("tokens_used").default(0),
+  date: timestamp("date").defaultNow(),
 });
 
 export const documents = pgTable("documents", {
@@ -53,6 +74,7 @@ export const qaItems = pgTable("qa_items", {
 // Define relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projects),
+  usageStats: many(usageStats),
 }));
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -62,6 +84,26 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
   }),
   documents: many(documents),
   qaItems: many(qaItems),
+  usageStats: many(usageStats),
+}));
+
+export const modelSettingsRelations = relations(modelSettings, ({ many }) => ({
+  usageStats: many(usageStats),
+}));
+
+export const usageStatsRelations = relations(usageStats, ({ one }) => ({
+  user: one(users, {
+    fields: [usageStats.userId],
+    references: [users.id],
+  }),
+  project: one(projects, {
+    fields: [usageStats.projectId],
+    references: [projects.id],
+  }),
+  model: one(modelSettings, {
+    fields: [usageStats.modelId],
+    references: [modelSettings.id],
+  }),
 }));
 
 export const documentsRelations = relations(documents, ({ one, many }) => ({
@@ -87,6 +129,7 @@ export const qaItemsRelations = relations(qaItems, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).omit({ 
   id: true,
   isVerified: true,
+  isAdmin: true,
   verificationToken: true,
   createdAt: true,
 }).extend({
@@ -98,6 +141,18 @@ export const insertProjectSchema = createInsertSchema(projects).omit({
   id: true,
   createdAt: true,
   status: true,
+  isActive: true,
+});
+
+export const insertModelSettingsSchema = createInsertSchema(modelSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertUsageStatsSchema = createInsertSchema(usageStats).omit({
+  id: true,
+  date: true,
 });
 
 export const insertDocumentSchema = createInsertSchema(documents).omit({ 
@@ -116,9 +171,13 @@ export const insertQAItemSchema = createInsertSchema(qaItems).omit({
 // Types
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertProject = z.infer<typeof insertProjectSchema>;
+export type InsertModelSettings = z.infer<typeof insertModelSettingsSchema>;
+export type InsertUsageStats = z.infer<typeof insertUsageStatsSchema>;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type InsertQAItem = z.infer<typeof insertQAItemSchema>;
 export type User = typeof users.$inferSelect;
 export type Project = typeof projects.$inferSelect;
+export type ModelSettings = typeof modelSettings.$inferSelect;
+export type UsageStats = typeof usageStats.$inferSelect;
 export type Document = typeof documents.$inferSelect;
 export type QAItem = typeof qaItems.$inferSelect;

@@ -7,6 +7,8 @@ import path from "path";
 import fs from "fs";
 import CryptoJS from 'crypto-js';
 import { WebSocketServer, WebSocket } from 'ws';
+import { z } from "zod";
+import { type ModelSettings, type UsageStats } from "@shared/schema";
 
 // Configure multer for file upload
 const upload = multer({
@@ -702,6 +704,132 @@ export function registerRoutes(app: Express): Server {
       console.error("Failed to update chatbot configuration:", error);
       res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to update configuration"
+      });
+    }
+  });
+
+  //Admin Endpoints
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch users"
+      });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/password", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const userId = parseInt(req.params.id);
+      const { password } = req.body;
+
+      if (!password || typeof password !== "string") {
+        return res.status(400).json({ message: "Invalid password" });
+      }
+
+      const user = await storage.updateUserPassword(userId, password);
+      res.json(user);
+    } catch (error) {
+      console.error("Failed to update user password:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update password"
+      });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/toggle-active", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const userId = parseInt(req.params.id);
+      const { isActive } = req.body;
+
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ message: "Invalid isActive value" });
+      }
+
+      const project = await storage.toggleProjectActive(userId, isActive);
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to toggle user active status:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to toggle user status"
+      });
+    }
+  });
+
+  app.get("/api/admin/model-settings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const settings = await storage.getAllModelSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch model settings:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch model settings"
+      });
+    }
+  });
+
+  app.patch("/api/admin/model-settings/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const settingId = parseInt(req.params.id);
+      const { isEnabled, priority } = req.body;
+
+      if (typeof isEnabled !== "boolean" && typeof priority !== "number") {
+        return res.status(400).json({ message: "Invalid input" });
+      }
+
+      const setting = await storage.updateModelSettings(settingId, {
+        isEnabled,
+        priority
+      });
+      res.json(setting);
+    } catch (error) {
+      console.error("Failed to update model setting:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update model setting"
+      });
+    }
+  });
+
+  app.get("/api/admin/usage-stats", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const { from, to } = req.query;
+      if (!from || !to || typeof from !== "string" || typeof to !== "string") {
+        return res.status(400).json({ message: "Invalid date range" });
+      }
+
+      const stats = await storage.getUsageStatsByDateRange(new Date(from), new Date(to));
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch usage stats:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch usage stats"
       });
     }
   });

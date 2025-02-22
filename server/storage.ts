@@ -3,9 +3,11 @@ import {
   type Project, type InsertProject,
   type Document, type InsertDocument,
   type QAItem, type InsertQAItem,
-  users, projects, documents, qaItems,
+  type ModelSettings, type InsertModelSettings,
+  type UsageStats, type InsertUsageStats,
+  users, projects, documents, qaItems, modelSettings, usageStats
 } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, gte, lte, and } from "drizzle-orm";
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pkg from 'pg';
 const { Pool } = pkg;
@@ -24,7 +26,7 @@ const pool = new Pool({
 });
 
 // Add error handling for the pool
-pool.on('error', (err, client) => {
+pool.on('error', (err: Error, client) => {
   console.error('Unexpected error on idle client', err);
   if (err.message.includes('Connection terminated')) {
     console.log('Attempting to reconnect...');
@@ -43,6 +45,8 @@ export interface IStorage {
   createUser(user: InsertUser & { verificationToken: string }): Promise<User>;
   verifyUser(userId: number): Promise<User>;
   updateUserPassword(userId: number, newPassword: string): Promise<User>;
+  getAllUsers(): Promise<User[]>;
+  updateUserAdmin(userId: number, isAdmin: boolean): Promise<User>;
   clearUsers(): Promise<void>;
 
   // Project operations
@@ -51,6 +55,22 @@ export interface IStorage {
   createProject(project: InsertProject): Promise<Project>;
   updateProject(id: number, project: Partial<InsertProject>): Promise<Project>;
   updateProjectStatus(id: number, status: string): Promise<Project>;
+  toggleProjectActive(id: number, isActive: boolean): Promise<Project>;
+  getAllProjects(): Promise<Project[]>;
+
+  // Model settings operations
+  getModelSettings(id: number): Promise<ModelSettings | undefined>;
+  getAllModelSettings(): Promise<ModelSettings[]>;
+  createModelSettings(settings: InsertModelSettings): Promise<ModelSettings>;
+  updateModelSettings(id: number, settings: Partial<InsertModelSettings>): Promise<ModelSettings>;
+  deleteModelSettings(id: number): Promise<void>;
+
+  // Usage stats operations
+  getUsageStats(userId: number): Promise<UsageStats[]>;
+  getAllUsageStats(): Promise<UsageStats[]>;
+  createUsageStats(stats: InsertUsageStats): Promise<UsageStats>;
+  updateUsageStats(id: number, stats: Partial<InsertUsageStats>): Promise<UsageStats>;
+  getUsageStatsByDateRange(startDate: Date, endDate: Date): Promise<UsageStats[]>;
 
   // Document operations
   getDocument(id: number): Promise<Document | undefined>;
@@ -80,10 +100,6 @@ export class DatabaseStorage implements IStorage {
       createTableIfMissing: true,
       pruneSessionInterval: 60, // Prune invalid sessions every minute
       errorLog: (err) => console.error('Session store error:', err),
-      // Add retry options
-      retries: 3,
-      minTimeout: 100,
-      maxTimeout: 1000
     });
 
     // Monitor session store errors
@@ -149,6 +165,7 @@ export class DatabaseStorage implements IStorage {
         verificationToken: insertUser.verificationToken,
         isVerified: false,
         createdAt: new Date(),
+        isAdmin: false, //Added isAdmin field
       }).returning();
       return results[0];
     });
@@ -170,6 +187,23 @@ export class DatabaseStorage implements IStorage {
       const results = await db
         .update(users)
         .set({ password: newPassword })
+        .where(eq(users.id, userId))
+        .returning();
+      return results[0];
+    });
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return this.executeWithRetry(async () => {
+      return await db.select().from(users);
+    });
+  }
+
+  async updateUserAdmin(userId: number, isAdmin: boolean): Promise<User> {
+    return this.executeWithRetry(async () => {
+      const results = await db
+        .update(users)
+        .set({ isAdmin })
         .where(eq(users.id, userId))
         .returning();
       return results[0];
@@ -201,6 +235,7 @@ export class DatabaseStorage implements IStorage {
         ...project,
         status: 'pending',
         createdAt: new Date(),
+        isActive: true, // Added isActive field
       }).returning();
       return results[0];
     });
@@ -225,6 +260,110 @@ export class DatabaseStorage implements IStorage {
         .where(eq(projects.id, id))
         .returning();
       return results[0];
+    });
+  }
+
+  async toggleProjectActive(id: number, isActive: boolean): Promise<Project> {
+    return this.executeWithRetry(async () => {
+      const results = await db
+        .update(projects)
+        .set({ isActive })
+        .where(eq(projects.id, id))
+        .returning();
+      return results[0];
+    });
+  }
+
+  async getAllProjects(): Promise<Project[]> {
+    return this.executeWithRetry(async () => {
+      return await db.select().from(projects);
+    });
+  }
+
+  async getModelSettings(id: number): Promise<ModelSettings | undefined> {
+    return this.executeWithRetry(async () => {
+      const results = await db.select().from(modelSettings).where(eq(modelSettings.id, id));
+      return results[0];
+    });
+  }
+
+  async getAllModelSettings(): Promise<ModelSettings[]> {
+    return this.executeWithRetry(async () => {
+      return await db.select().from(modelSettings);
+    });
+  }
+
+  async createModelSettings(settings: InsertModelSettings): Promise<ModelSettings> {
+    return this.executeWithRetry(async () => {
+      const results = await db.insert(modelSettings).values({
+        ...settings,
+        updatedAt: new Date(),
+      }).returning();
+      return results[0];
+    });
+  }
+
+  async updateModelSettings(id: number, settings: Partial<InsertModelSettings>): Promise<ModelSettings> {
+    return this.executeWithRetry(async () => {
+      const results = await db
+        .update(modelSettings)
+        .set({
+          ...settings,
+          updatedAt: new Date(),
+        })
+        .where(eq(modelSettings.id, id))
+        .returning();
+      return results[0];
+    });
+  }
+
+  async deleteModelSettings(id: number): Promise<void> {
+    return this.executeWithRetry(async () => {
+      await db.delete(modelSettings).where(eq(modelSettings.id, id));
+    });
+  }
+
+  async getUsageStats(userId: number): Promise<UsageStats[]> {
+    return this.executeWithRetry(async () => {
+      return await db.select().from(usageStats).where(eq(usageStats.userId, userId));
+    });
+  }
+
+  async getAllUsageStats(): Promise<UsageStats[]> {
+    return this.executeWithRetry(async () => {
+      return await db.select().from(usageStats);
+    });
+  }
+
+  async createUsageStats(stats: InsertUsageStats): Promise<UsageStats> {
+    return this.executeWithRetry(async () => {
+      const results = await db.insert(usageStats).values(stats).returning();
+      return results[0];
+    });
+  }
+
+  async updateUsageStats(id: number, stats: Partial<InsertUsageStats>): Promise<UsageStats> {
+    return this.executeWithRetry(async () => {
+      const results = await db
+        .update(usageStats)
+        .set(stats)
+        .where(eq(usageStats.id, id))
+        .returning();
+      return results[0];
+    });
+  }
+
+  async getUsageStatsByDateRange(startDate: Date, endDate: Date): Promise<UsageStats[]> {
+    return this.executeWithRetry(async () => {
+      return await db
+        .select()
+        .from(usageStats)
+        .where(
+          and(
+            gte(usageStats.date, startDate),
+            lte(usageStats.date, endDate)
+          )
+        );
     });
   }
 
@@ -256,7 +395,7 @@ export class DatabaseStorage implements IStorage {
     return this.executeWithRetry(async () => {
       const results = await db
         .update(documents)
-        .set({ 
+        .set({
           embeddings,
           processingStatus: 'completed'
         })
