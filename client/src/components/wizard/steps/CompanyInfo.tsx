@@ -48,12 +48,12 @@ export default function CompanyInfo() {
               id="welcomeMessage"
               value={welcomeMessage}
               onChange={(e) => updateConfig({ welcomeMessage: e.target.value })}
-              placeholder="Enter a friendly welcome message for your users"
+              placeholder="Example: Hi there! 👋 How can I assist you today?"
               className="resize-none"
               rows={3}
             />
             <p className="text-sm text-gray-500">
-              This message will be shown when users first open the chat
+              This message will be shown when users first open the chat. Use emojis to make it friendly!
             </p>
           </div>
         </div>

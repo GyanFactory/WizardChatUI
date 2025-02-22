@@ -38,7 +38,7 @@ const initialState = {
   isEditing: false,
   currentStep: 0,
   companyName: '',
-  welcomeMessage: '',
+  welcomeMessage: 'Hi there! 👋 How can I assist you today?',
   primaryColor: '#2563eb',
   fontFamily: 'Inter',
   position: 'bottom-right',
