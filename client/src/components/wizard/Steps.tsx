@@ -92,12 +92,13 @@ export default function Steps() {
 
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("model", selectedModel); 
+      formData.append("model", selectedModel); // Use the actual selected model
       formData.append("context", context);
       formData.append("projectId", projectId.toString());
 
       // Only append API key if model is not opensource
       if (selectedModel !== "opensource" && apiKey) {
+        console.log("Uploading with model:", selectedModel); // Debug log
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
@@ -231,7 +232,7 @@ export default function Steps() {
           onFileSelect={setSelectedFile}
           onContextChange={setContext}
           onModelSelect={(model: string, key?: string) => {
-            console.log("Model selected:", model); 
+            console.log("Model selected:", model); // Debug log
             setSelectedModel(model);
             setApiKey(key);
           }}
