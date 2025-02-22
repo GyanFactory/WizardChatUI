@@ -12,10 +12,11 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { User, LogOut, Settings } from "lucide-react";
+import { User, LogOut, Settings, Users, BarChart, Cpu } from "lucide-react";
 import { useWizardStore } from "@/store/wizardStore";
 
 export function Navigation() {
@@ -39,6 +40,33 @@ export function Navigation() {
                 </NavigationMenuLink>
               </Link>
             </NavigationMenuItem>
+            {user?.isAdmin && (
+              <NavigationMenuItem>
+                <NavigationMenuTrigger>Admin Panel</NavigationMenuTrigger>
+                <NavigationMenuContent>
+                  <div className="grid gap-1 p-2 w-[200px]">
+                    <Link href="/admin/users">
+                      <NavigationMenuLink className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-accent">
+                        <Users className="h-4 w-4" />
+                        User Management
+                      </NavigationMenuLink>
+                    </Link>
+                    <Link href="/admin/model-settings">
+                      <NavigationMenuLink className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-accent">
+                        <Cpu className="h-4 w-4" />
+                        Model Settings
+                      </NavigationMenuLink>
+                    </Link>
+                    <Link href="/admin/usage-stats">
+                      <NavigationMenuLink className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-accent">
+                        <BarChart className="h-4 w-4" />
+                        Usage Statistics
+                      </NavigationMenuLink>
+                    </Link>
+                  </div>
+                </NavigationMenuContent>
+              </NavigationMenuItem>
+            )}
           </NavigationMenuList>
         </NavigationMenu>
 
@@ -58,6 +86,7 @@ export function Navigation() {
                     Profile Settings
                   </DropdownMenuItem>
                 </Link>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={handleLogout}
                   disabled={logoutMutation.isPending}
