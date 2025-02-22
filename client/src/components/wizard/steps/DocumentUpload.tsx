@@ -42,19 +42,7 @@ export default function DocumentUpload({
   const checkAPIKey = async (key: string, model: string) => {
     try {
       const encryptedKey = encryptApiKey(key);
-      let endpoint = '';
-
-      switch(model) {
-        case 'openai':
-          endpoint = '/api/validate-openai-key';
-          break;
-        case 'huggingface':
-          endpoint = '/api/validate-huggingface-key';
-          break;
-        case 'deepseek':
-          endpoint = '/api/validate-deepseek-key';
-          break;
-      }
+      const endpoint = `/api/validate-${model}-key`;
 
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -115,7 +103,6 @@ export default function DocumentUpload({
     const isValid = await checkAPIKey(apiKey, selectedModel);
     if (isValid) {
       setShowApiKeyDialog(false);
-      // Pass both the model and API key to parent
       onModelSelect(selectedModel, apiKey);
     }
   };
