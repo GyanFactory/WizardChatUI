@@ -12,12 +12,20 @@ export default function Embed() {
   const config = useWizardStore();
   const [configId, setConfigId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const isEditing = useWizardStore((state) => state.isEditing);
 
   // Save configuration when component mounts
   const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("/api/chatbot-configs", {
-        method: "POST",
+      // Use PUT for updates, POST for new configs
+      const endpoint = isEditing
+        ? `/api/chatbot-configs/${config.id}`
+        : "/api/chatbot-configs";
+
+      const method = isEditing ? "PUT" : "POST";
+
+      const response = await apiRequest(endpoint, {
+        method,
         headers: {
           'Content-Type': 'application/json'
         },
@@ -41,7 +49,7 @@ export default function Embed() {
 
       const data = await response.json();
       setConfigId(data.id);
-      return data as ChatbotConfig;
+      return data;
     },
     onError: (error: Error) => {
       toast({

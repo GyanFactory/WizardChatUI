@@ -543,7 +543,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Add POST endpoint for creating/updating chatbot configuration
+  // Modify the POST endpoint for chatbot configs
   app.post("/api/chatbot-configs", async (req, res) => {
     if (!req.isAuthenticated()) {
       return res.status(401).json({ message: "Not authenticated" });
@@ -562,10 +562,72 @@ export function registerRoutes(app: Express): Server {
         buttonStyle,
       } = req.body;
 
+      if (!companyName || !welcomeMessage) {
+        return res.status(400).json({
+          message: "Company name and welcome message are required"
+        });
+      }
+
       const userId = req.user!.id;
 
-      const project = await storage.updateProject({
+      // Create new project with required fields
+      const project = await storage.createProject({
         userId,
+        name: companyName, // Use company name as project name
+        companyName,
+        welcomeMessage,
+        primaryColor: primaryColor || '#2563eb',
+        fontFamily: fontFamily || 'Inter',
+        position: position || 'right',
+        avatarUrl: avatarUrl || '/avatars/robot-blue.svg',
+        bubbleStyle: bubbleStyle || 'rounded',
+        backgroundColor: backgroundColor || '#ffffff',
+        buttonStyle: buttonStyle || 'solid'
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to save chatbot configuration:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to save configuration"
+      });
+    }
+  });
+
+  // Add a new PUT endpoint for updating existing configs
+  app.put("/api/chatbot-configs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+
+      const existingProject = await storage.getProject(projectId);
+      if (!existingProject) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (existingProject.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to update this project" });
+      }
+
+      const {
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      } = req.body;
+
+      const project = await storage.updateProject(projectId, {
         companyName,
         welcomeMessage,
         primaryColor,
@@ -579,9 +641,9 @@ export function registerRoutes(app: Express): Server {
 
       res.json(project);
     } catch (error) {
-      console.error("Failed to save chatbot configuration:", error);
+      console.error("Failed to update chatbot configuration:", error);
       res.status(500).json({
-        message: error instanceof Error ? error.message : "Failed to save configuration"
+        message: error instanceof Error ? error.message : "Failed to update configuration"
       });
     }
   });
