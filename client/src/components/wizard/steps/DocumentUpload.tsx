@@ -16,7 +16,7 @@ interface DocumentUploadProps {
   onFileSelect: (file: FileWithPath | null) => void;
   onContextChange: (context: string) => void;
   onModelSelect: (model: string, apiKey?: string) => void;
-  documentProcessed?: boolean; // Add this prop
+  documentProcessed?: boolean;
 }
 
 export default function DocumentUpload({ 
@@ -132,6 +132,13 @@ export default function DocumentUpload({
     }
   };
 
+  const handleContextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newContext = e.target.value;
+    setContext(newContext);
+    setContextError("");
+    onContextChange(newContext);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -144,18 +151,15 @@ export default function DocumentUpload({
       <Card className="p-6">
         <div className="space-y-6">
           <div className="space-y-4">
-            <Label>
+            <Label htmlFor="context">
               Context <span className="text-red-500">*</span>
             </Label>
             <Textarea
+              id="context"
               placeholder="Describe what kind of information you want to extract from this document. For example: 'This is a technical manual, I want to extract information about installation procedures and troubleshooting steps.'"
               value={context}
-              onChange={(e) => {
-                setContext(e.target.value);
-                setContextError("");
-                onContextChange(e.target.value);
-              }}
-              className={`h-24 ${contextError ? "border-red-500" : ""}`}
+              onChange={handleContextChange}
+              className={`min-h-[100px] ${contextError ? "border-red-500" : ""}`}
             />
             {contextError && <p className="text-sm text-red-500">{contextError}</p>}
           </div>

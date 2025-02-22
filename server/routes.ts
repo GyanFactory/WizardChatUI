@@ -343,133 +343,13 @@ A: [Clear, comprehensive answer]`;
   }
 }
 
-// Chat endpoint for embeddings-based responses
-app.post("/api/chat", async (req, res) => {
-  try {
-    const { message, configId } = req.body;
-
-    if (!message || !configId) {
-      return res.status(400).json({ error: "Message and configId are required" });
-    }
-
-    // Get project configuration
-    const project = await storage.getProject(configId);
-    if (!project) {
-      return res.status(404).json({ error: "Chat configuration not found" });
-    }
-
-    // Get documents and their embeddings for this project
-    const documents = await storage.getDocumentsByProject(project.id);
-    if (!documents.length) {
-      return res.status(404).json({ error: "No documents found for this chat" });
-    }
-
-    // Get embeddings for the user's message
-    const pythonProcess = spawn("python", [
-      path.join(process.cwd(), "server/services/embeddings.py")
-    ]);
-
-    let embeddingsOutput = '';
-    let embeddingsError = '';
-
-    // Pass text to the Python process
-    pythonProcess.stdin.write(JSON.stringify({
-      text: message,
-      api_key: process.env.OPENAI_API_KEY,
-      is_query: true
-    }));
-    pythonProcess.stdin.end();
-
-    pythonProcess.stdout.on('data', (data) => {
-      embeddingsOutput += data;
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      embeddingsError += data;
-      console.error('Embeddings error:', data.toString());
-    });
-
-    const exitCode = await new Promise((resolve) => {
-      pythonProcess.on('close', resolve);
-    });
-
-    if (exitCode !== 0) {
-      console.error('Embeddings error output:', embeddingsError);
-      throw new Error('Failed to generate embeddings: ' + embeddingsError);
-    }
-
-    const queryEmbedding = JSON.parse(embeddingsOutput);
-
-    // Find most relevant document using cosine similarity
-    let bestMatch = null;
-    let highestSimilarity = -1;
-
-    for (const doc of documents) {
-      const similarity = calculateCosineSimilarity(queryEmbedding, doc.embeddings);
-      if (similarity > highestSimilarity) {
-        highestSimilarity = similarity;
-        bestMatch = doc;
-      }
-    }
-
-    if (!bestMatch || highestSimilarity < 0.7) {
-      return res.json({
-        response: "I couldn't find a relevant answer in my knowledge base. Could you try rephrasing your question?"
-      });
-    }
-
-    // Get QA items for the most relevant document
-    const qaItems = await storage.getQAItemsByDocument(bestMatch.id);
-
-    // Find most relevant QA pair
-    let bestQA = null;
-    highestSimilarity = -1;
-
-    for (const qa of qaItems) {
-      const combinedText = `${qa.question} ${qa.answer}`;
-      const qaProcess = spawn("python", [
-        path.join(process.cwd(), "server/services/embeddings.py")
-      ]);
-
-      let qaEmbeddingsOutput = '';
-      qaProcess.stdin.write(JSON.stringify({
-        text: combinedText,
-        api_key: process.env.OPENAI_API_KEY,
-        is_query: true
-      }));
-      qaProcess.stdin.end();
-
-      qaProcess.stdout.on('data', (data) => {
-        qaEmbeddingsOutput += data;
-      });
-
-      const qaExitCode = await new Promise((resolve) => {
-        qaProcess.on('close', resolve);
-      });
-
-      if (qaExitCode === 0) {
-        const qaEmbedding = JSON.parse(qaEmbeddingsOutput);
-        const similarity = calculateCosineSimilarity(queryEmbedding, qaEmbedding);
-        if (similarity > highestSimilarity) {
-          highestSimilarity = similarity;
-          bestQA = qa;
-        }
-      }
-    }
-
-    // Send the most relevant answer or a fallback response
-    res.json({
-      response: bestQA ? bestQA.answer : bestMatch.content
-    });
-
-  } catch (error) {
-    console.error('Chat API error:', error);
-    res.status(500).json({
-      error: "Failed to process chat message",
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
+// Add cosine similarity calculation function
+function calculateCosineSimilarity(vec1: number[], vec2: number[]): number {
+  const dotProduct = vec1.reduce((acc, val, i) => acc + val * vec2[i], 0);
+  const norm1 = Math.sqrt(vec1.reduce((acc, val) => acc + val * val, 0));
+  const norm2 = Math.sqrt(vec2.reduce((acc, val) => acc + val * val, 0));
+  return dotProduct / (norm1 * norm2);
+}
 
 export function registerRoutes(app: Express): Server {
   // Add validation endpoints for new APIs
@@ -1021,15 +901,683 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Chat endpoint for embeddings-based responses
+  app.post("/api/chat", async (req, res) => {
+    try {
+      const { message, configId } = req.body;
+
+      if (!message || !configId) {
+        return res.status(400).json({ error: "Message and configId are required" });
+      }
+
+      // Get project configuration
+      const project = await storage.getProject(configId);
+      if (!project) {
+        return res.status(404).json({ error: "Chat configuration not found" });
+      }
+
+      // Get documents and their embeddings for this project
+      const documents = await storage.getDocumentsByProject(project.id);
+      if (!documents.length) {
+        return res.status(404).json({ error: "No documents found for this chat" });
+      }
+
+      // Get embeddings for the user's message
+      const pythonProcess = spawn("python", [
+        path.join(process.cwd(), "server/services/embeddings.py")
+      ]);
+
+      let embeddingsOutput = '';
+      let embeddingsError = '';
+
+      // Pass text to the Python process
+      pythonProcess.stdin.write(JSON.stringify({
+        text: message,
+        api_key: process.env.OPENAI_API_KEY,
+        is_query: true
+      }));
+      pythonProcess.stdin.end();
+
+      pythonProcess.stdout.on('data', (data) => {
+        embeddingsOutput += data;
+      });
+
+      pythonProcess.stderr.on('data', (data) => {
+        embeddingsError += data;
+        console.error('Embeddings error:', data.toString());
+      });
+
+      const exitCode = await new Promise((resolve) => {
+        pythonProcess.on('close', resolve);
+      });
+
+      if (exitCode !== 0) {
+        console.error('Embeddings error output:', embeddingsError);
+        throw new Error('Failed to generate embeddings: ' + embeddingsError);
+      }
+
+      const queryEmbedding = JSON.parse(embeddingsOutput);
+
+      // Find most relevant document using cosine similarity
+      let bestMatch = null;
+      let highestSimilarity = -1;
+
+      for (const doc of documents) {
+        const similarity = calculateCosineSimilarity(queryEmbedding, doc.embeddings);
+        if (similarity > highestSimilarity) {
+          highestSimilarity = similarity;
+          bestMatch = doc;
+        }
+      }
+
+      if (!bestMatch || highestSimilarity < 0.7) {
+        return res.json({
+          response: "I couldn't find a relevant answer in my knowledge base. Could you try rephrasing your question?"
+        });
+      }
+
+      // Get QA items for the most relevant document
+      const qaItems = await storage.getQAItemsByDocument(bestMatch.id);
+
+      // Find most relevant QA pair
+      let bestQA = null;
+      highestSimilarity = -1;
+
+      for (const qa of qaItems) {
+        const combinedText = `${qa.question} ${qa.answer}`;
+        const qaProcess = spawn("python", [
+          path.join(process.cwd(), "server/services/embeddings.py")
+        ]);
+
+        let qaEmbeddingsOutput = '';
+        qaProcess.stdin.write(JSON.stringify({
+          text: combinedText,
+          api_key: process.env.OPENAI_API_KEY,
+          is_query: true
+        }));
+        qaProcess.stdin.end();
+
+        qaProcess.stdout.on('data', (data) => {
+          qaEmbeddingsOutput += data;
+        });
+
+        const qaExitCode = await new Promise((resolve) => {
+          qaProcess.on('close', resolve);
+        });
+
+        if (qaExitCode === 0) {
+          const qaEmbedding = JSON.parse(qaEmbeddingsOutput);
+          const similarity = calculateCosineSimilarity(queryEmbedding, qaEmbedding);
+          if (similarity > highestSimilarity) {
+            highestSimilarity = similarity;
+            bestQA = qa;
+          }
+        }
+      }
+
+      // Send the most relevant answer or a fallback response
+      res.json({
+        response: bestQA ? bestQA.answer : bestMatch.content
+      });
+
+    } catch (error) {
+      console.error('Chat API error:', error);
+      res.status(500).json({
+        error: "Failed to process chat message",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  // Add validation endpoints for new APIs
+  app.post("/api/validate-huggingface-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      const decryptedKey = decryptApiKey(apiKey);
+      const isValid = await validateHuggingFaceKey(decryptedKey);
+
+      if (!isValid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({ valid: true });
+    } catch (err) {
+      console.error("Failed to validate Hugging Face key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  app.post("/api/validate-deepseek-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      const decryptedKey = decryptApiKey(apiKey);
+      const isValid = await validateDeepSeekKey(decryptedKey);
+
+      if (!isValid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({ valid: true });
+    } catch (err) {
+      console.error("Failed to validate DeepSeek key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  // Existing routes remain the same
+  app.post("/api/documents/upload", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      try {
+        const extractedText = await extractTextFromPDF(req.file.path);
+        console.log("Extracted text length:", extractedText.length);
+
+        if (!extractedText.trim()) {
+          throw new Error("No text could be extracted from the PDF");
+        }
+
+        const model = req.body.model || "opensource";
+        let apiKey = req.body.apiKey;
+        const context = req.body.context;
+        const projectId = parseInt(req.body.projectId);
+
+        if (!context?.trim()) {
+          throw new Error("Context is required");
+        }
+
+        // Decrypt API key if provided
+        if (apiKey) {
+          apiKey = decryptApiKey(apiKey);
+        }
+
+        console.log(`Generating QA pairs using ${model} model`);
+        const qaItems = await generateQAPairs(extractedText, model, apiKey, context);
+        console.log(`Generated ${qaItems.length} Q&A pairs`);
+
+        if (!qaItems.length) {
+          throw new Error("No QA pairs could be generated");
+        }
+
+        // Generate embeddings using Python service, now passing API key
+        const pythonProcess = spawn("python", [
+          path.join(process.cwd(), "server/services/embeddings.py")
+        ]);
+
+        let embeddingsOutput = '';
+        let embeddingsError = '';
+
+        // Pass text and API key to the Python process
+        pythonProcess.stdin.write(JSON.stringify({
+          text: extractedText,
+          api_key: apiKey // Pass the API key for embeddings generation
+        }));
+        pythonProcess.stdin.end();
+
+        pythonProcess.stdout.on('data', (data) => {
+          embeddingsOutput += data;
+        });
+
+        pythonProcess.stderr.on('data', (data) => {
+          embeddingsError += data;
+          console.error('Embeddings error:', data.toString());
+        });
+
+        const exitCode = await new Promise((resolve) => {
+          pythonProcess.on('close', resolve);
+        });
+
+        if (exitCode !== 0) {
+          console.error('Embeddings error output:', embeddingsError);
+          throw new Error('Failed to generate embeddings: ' + embeddingsError);
+        }
+
+        const embeddings = JSON.parse(embeddingsOutput);
+
+        const doc = await storage.createDocument({
+          projectId,
+          filename: req.file.originalname,
+          content: extractedText,
+          embeddings,
+        });
+
+        const storedItems = await storage.createQAItems(
+          qaItems.map((item: any) => ({
+            projectId,
+            documentId: doc.id,
+            question: item.question,
+            answer: item.answer,
+            isGenerated: true,
+          }))
+        );
+
+        fs.unlinkSync(req.file.path);
+
+        res.json({
+          document: doc,
+          qaItems: storedItems,
+        });
+      } catch (err) {
+        console.error("Failed to process document:", err);
+        res.status(500).json({
+          error: "Failed to process document",
+          details: err instanceof Error ? err.message : String(err)
+        });
+      }
+    } catch (err) {
+      console.error("Upload error:", err);
+      res.status(500).json({
+        error: "Failed to upload file",
+        details: err instanceof Error ? err.message : String(err),
+      });
+    }
+  });
+
+  // Add the project creation endpoint
+  app.post("/api/projects", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const { name, companyName, welcomeMessage } = req.body;
+      const userId = req.user!.id;
+
+      const project = await storage.createProject({
+        userId,
+        name,
+        companyName,
+        welcomeMessage,
+        primaryColor: '#2563eb',
+        fontFamily: 'Inter',
+        position: 'bottom-right',
+        avatarUrl: '/avatars/robot-blue.svg',
+        bubbleStyle: 'rounded',
+        backgroundColor: '#ffffff',
+        buttonStyle: 'solid',
+        status: 'active'
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to create project:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to create project"
+      });
+    }
+  });
+
+
+  // Add after line 467 in the existing projects route group
+  app.get("/api/projects/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Check if user owns this project
+      if (project.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to view this project" });
+      }
+
+      // Get associated QA items
+      const qaItems = await storage.getQAItems(projectId);
+
+      res.json({
+        ...project,
+        qaItems
+      });
+    } catch (error) {
+      console.error("Failed to fetch project:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch project"
+      });
+    }
+  });
+
+  // Add validation endpoint for OpenAI API key  (This replaces the original)
+  app.post("/api/validate-openai-key", async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey) {
+        res.status(400).json({ error: "API key is required" });
+        return;
+      }
+
+      // Decrypt the API key
+      const decryptedKey = decryptApiKey(apiKey);
+      const quotaInfo = await getOpenAIQuota(decryptedKey);
+
+      if (!quotaInfo.valid) {
+        res.status(400).json({ error: "Invalid API key" });
+        return;
+      }
+
+      res.json({
+        valid: true,
+        quota: quotaInfo.quota
+      });
+    } catch (err) {
+      console.error("Failed to validate OpenAI key:", err);
+      res.status(500).json({ error: "Failed to validate API key" });
+    }
+  });
+
+  // Add chatbot configurations endpoint
+  app.get("/api/chatbot-configs", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const configs = await storage.getProjectsByUser(req.user!.id);
+      res.json(configs);
+    } catch (error) {
+      console.error("Failed to fetch chatbot configs:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch configurations"
+      });
+    }
+  });
+
+  // Modify the POST endpoint for chatbot configs
+  app.post("/api/chatbot-configs", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const {
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      } = req.body;
+
+      if (!companyName || !welcomeMessage) {
+        return res.status(400).json({
+          message: "Company name and welcome message are required"
+        });
+      }
+
+      const userId = req.user!.id;
+
+      // Create new project with required fields
+      const project = await storage.createProject({
+        userId,
+        name: companyName, // Use company name as project name
+        companyName,
+        welcomeMessage,
+        primaryColor: primaryColor || '#2563eb',
+        fontFamily: fontFamily || 'Inter',
+        position: position || 'right',
+        avatarUrl: avatarUrl || '/avatars/robot-blue.svg',
+        bubbleStyle: bubbleStyle || 'rounded',
+        backgroundColor: backgroundColor || '#ffffff',
+        buttonStyle: buttonStyle || 'solid'
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to save chatbot configuration:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to save configuration"
+      });
+    }
+  });
+
+  // Add a new PUT endpoint for updating existing configs
+  app.put("/api/chatbot-configs/:id", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+
+      const existingProject = await storage.getProject(projectId);
+      if (!existingProject) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      if (existingProject.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to update this project" });
+      }
+
+      const {
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      } = req.body;
+
+      const project = await storage.updateProject(projectId, {
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to update chatbot configuration:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update configuration"
+      });
+    }
+  });
+
+  //Admin Endpoints
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const users = await storage.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch users"
+      });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/password", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const userId = parseInt(req.params.id);
+      const { password } = req.body;
+
+      if (!password || typeof password !== "string") {
+        return res.status(400).json({ message: "Invalid password" });
+      }
+
+      const user = await storage.updateUserPassword(userId, password);
+      res.json(user);
+    } catch (error) {
+      console.error("Failed to update user password:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update password"
+      });
+    }
+  });
+
+  app.patch("/api/admin/users/:id/toggle-active", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const userId = parseInt(req.params.id);
+      const { isActive } = req.body;
+
+      if (typeof isActive !== "boolean") {
+        return res.status(400).json({ message: "Invalid isActive value" });
+      }
+
+      const project = await storage.toggleProjectActive(userId, isActive);
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to toggle user active status:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to toggle user status"
+      });
+    }
+  });
+
+  app.get("/api/admin/model-settings", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const settings = await storage.getAllModelSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Failed to fetch model settings:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch model settings"
+      });
+    }
+  });
+
+  app.patch("/api/admin/model-settings/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const settingId = parseInt(req.params.id);
+      const { isEnabled, priority } = req.body;
+
+      if (typeof isEnabled !== "boolean" && typeof priority !== "number") {
+        return res.status(400).json({ message: "Invalid input" });
+      }
+
+      const setting = await storage.updateModelSettings(settingId, {
+        isEnabled,
+        priority
+      });
+      res.json(setting);
+    } catch (error) {
+      console.error("Failed to update model setting:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to update model setting"
+      });
+    }
+  });
+
+  app.get("/api/admin/projects", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const projects = await storage.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch projects"
+      });
+    }
+  });
+
+  app.get("/api/admin/usage-stats", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const { from, to, selectedUser, selectedProject } = req.query;
+
+      // Validate date parameters
+      if (!from || !to || typeof from !== "string" || typeof to !== "string") {
+        return res.status(400).json({ message: "Invalid date range" });
+      }
+
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+
+      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      // Get base stats for the date range
+      let stats = await storage.getUsageStatsByDateRange(fromDate, toDate);
+
+      // Filter by user if specified
+      if (selectedUser && selectedUser !== "all") {
+        const userId = parseInt(selectedUser as string);
+        if (!isNaN(userId)) {
+          stats = stats.filter(stat => stat.userId === userId);
+        }
+      }
+
+      // Filter by project if specified
+      if (selectedProject && selectedProject !== "all") {
+        const projectId = parseInt(selectedProject as string);
+        if (!isNaN(projectId)) {
+          stats = stats.filter(stat => stat.projectId === projectId);
+        }
+      }
+
+      res.json(stats);
+    } catch (error) {
+      console.error("Failed to fetch usage stats:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch usage stats"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
-
   return httpServer;
-}
-
-// Add cosine similarity calculation function
-function calculateCosineSimilarity(vec1: number[], vec2: number[]): number {
-  const dotProduct = vec1.reduce((acc, val, i) => acc + val * vec2[i], 0);
-  const norm1 = Math.sqrt(vec1.reduce((acc, val) => acc + val * val, 0));
-  const norm2 = Math.sqrt(vec2.reduce((acc, val) => acc + val * val, 0));
-  return dotProduct / (norm1 * norm2);
 }
