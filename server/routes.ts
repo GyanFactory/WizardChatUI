@@ -498,6 +498,43 @@ export function registerRoutes(app: Express): Server {
   });
 
 
+  // Add after line 467 in the existing projects route group
+  app.get("/api/projects/:id", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        return res.status(401).json({ message: "Not authenticated" });
+      }
+
+      const projectId = parseInt(req.params.id);
+      if (isNaN(projectId)) {
+        return res.status(400).json({ message: "Invalid project ID" });
+      }
+
+      const project = await storage.getProject(projectId);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+
+      // Check if user owns this project
+      if (project.userId !== req.user!.id) {
+        return res.status(403).json({ message: "Not authorized to view this project" });
+      }
+
+      // Get associated QA items
+      const qaItems = await storage.getQAItems(projectId);
+
+      res.json({
+        ...project,
+        qaItems
+      });
+    } catch (error) {
+      console.error("Failed to fetch project:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch project"
+      });
+    }
+  });
+
   // Add validation endpoint for OpenAI API key  (This replaces the original)
   app.post("/api/validate-openai-key", async (req, res) => {
     try {
