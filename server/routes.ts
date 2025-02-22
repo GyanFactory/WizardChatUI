@@ -425,10 +425,31 @@ export function registerRoutes(app: Express): Server {
           throw new Error("No QA pairs could be generated");
         }
 
+        // Generate embeddings using Python service
+        const pythonProcess = spawn("python", [
+          path.join(process.cwd(), "server/services/embeddings.py"),
+          extractedText
+        ]);
+
+        let embeddingsOutput = '';
+        pythonProcess.stdout.on('data', (data) => {
+          embeddingsOutput += data;
+        });
+
+        await new Promise((resolve, reject) => {
+          pythonProcess.on('close', (code) => {
+            if (code === 0) resolve(null);
+            else reject(new Error('Failed to generate embeddings'));
+          });
+        });
+
+        const embeddings = JSON.parse(embeddingsOutput);
+
         const doc = await storage.createDocument({
           projectId,
           filename: req.file.originalname,
           content: extractedText,
+          embeddings,
         });
 
         const storedItems = await storage.createQAItems(
