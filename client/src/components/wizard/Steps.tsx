@@ -31,6 +31,7 @@ export default function Steps() {
   const [apiKey, setApiKey] = useState<string>();
   const [context, setContext] = useState("");
   const [qaItems, setQAItems] = useState<any[]>([]);
+  const [documentProcessed, setDocumentProcessed] = useState(false);
 
   // Query to fetch or create project
   const { data: project } = useQuery({
@@ -101,14 +102,6 @@ export default function Steps() {
         formData.append("apiKey", encryptedKey);
       }
 
-      // Debug log
-      console.log("Uploading with model:", selectedModel);
-      formData.forEach((value, key) => {
-        if (key !== "file" && key !== "apiKey") {
-          console.log(`Form data - ${key}:`, value);
-        }
-      });
-
       const response = await fetch('/api/documents/upload', {
         method: 'POST',
         body: formData,
@@ -121,9 +114,10 @@ export default function Steps() {
 
       const data = await response.json();
       setQAItems(data.qaItems);
+      setDocumentProcessed(true); 
       toast({
         title: "Success!",
-        description: `Generated ${data.qaItems.length} Q&A pairs from your document.`,
+        description: `Document processed successfully. You can now test the chatbot in the preview.`,
       });
       return true;
     } catch (error) {
@@ -184,7 +178,7 @@ export default function Steps() {
           });
           return false;
         }
-        console.log("Validating step with model:", selectedModel); // Debug log
+        console.log("Validating step with model:", selectedModel); 
         return await uploadDocument();
     }
     return true;
@@ -241,6 +235,7 @@ export default function Steps() {
             setApiKey(key);
           }}
           qaItems={qaItems}
+          documentProcessed={documentProcessed} 
         />
       </div>
 
