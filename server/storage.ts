@@ -14,18 +14,22 @@ import connectPg from "connect-pg-simple";
 
 const PostgresSessionStore = connectPg(session);
 
-// Create a connection pool instead of a single client
+// Create a connection pool with optimized settings
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait before timing out when connecting a new client
+  max: 10, // Reduced from 20 to prevent too many connections
+  idleTimeoutMillis: 60000, // Increased idle timeout
+  connectionTimeoutMillis: 5000, // Increased connection timeout
+  allowExitOnIdle: true
 });
 
 // Add error handling for the pool
 pool.on('error', (err, client) => {
   console.error('Unexpected error on idle client', err);
-  // Don't exit the process on connection errors
+  if (err.message.includes('Connection terminated')) {
+    console.log('Attempting to reconnect...');
+    client.release(true); // Force release with error
+  }
 });
 
 // Initialize drizzle with the pool
@@ -72,27 +76,49 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({
-      pool: pool, // Use the pool for session store
+      pool,
       createTableIfMissing: true,
+      pruneSessionInterval: 60, // Prune invalid sessions every minute
+      errorLog: (err) => console.error('Session store error:', err),
+      // Add retry options
+      retries: 3,
+      minTimeout: 100,
+      maxTimeout: 1000
+    });
+
+    // Monitor session store errors
+    this.sessionStore.on('error', (error) => {
+      console.error('Session store error:', error);
     });
   }
 
-  // Add private helper method for error handling
-  private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
-    try {
-      return await operation();
-    } catch (error: any) {
-      if (error.code === '57P01') { // Termination error code
-        console.warn('Database connection terminated, retrying operation...');
-        // Small delay before retry
-        await new Promise(resolve => setTimeout(resolve, 100));
+  // Add private helper method for error handling with improved retry logic
+  private async executeWithRetry<T>(operation: () => Promise<T>, retries = 3): Promise<T> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
         return await operation();
+      } catch (error: any) {
+        console.error(`Database operation attempt ${attempt} failed:`, error.message);
+
+        // Check if it's a connection error that we should retry
+        if (
+          (error.code === '57P01' || // Termination error code
+           error.code === '08006' || // Connection failure
+           error.code === '08001' || // Unable to establish connection
+           error.message.includes('Connection terminated')) &&
+          attempt < retries
+        ) {
+          const delay = Math.min(100 * Math.pow(2, attempt), 1000); // Exponential backoff
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        throw error;
       }
-      throw error;
     }
+    throw new Error('Max retries reached');
   }
 
-  // Update all methods to use executeWithRetry
   async getUser(id: number): Promise<User | undefined> {
     return this.executeWithRetry(async () => {
       const results = await db.select().from(users).where(eq(users.id, id));
@@ -156,7 +182,6 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // Project operations with retry logic
   async getProject(id: number): Promise<Project | undefined> {
     return this.executeWithRetry(async () => {
       const results = await db.select().from(projects).where(eq(projects.id, id));
@@ -203,7 +228,6 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // Document operations with retry logic
   async getDocument(id: number): Promise<Document | undefined> {
     return this.executeWithRetry(async () => {
       const results = await db.select().from(documents).where(eq(documents.id, id));
@@ -253,7 +277,6 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // QA operations with retry logic
   async getQAItems(projectId: number): Promise<QAItem[]> {
     return this.executeWithRetry(async () => {
       return await db.select().from(qaItems).where(eq(qaItems.projectId, projectId));
