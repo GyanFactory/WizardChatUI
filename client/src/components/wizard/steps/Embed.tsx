@@ -16,7 +16,7 @@ export default function Embed() {
   // Save configuration when component mounts
   const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/chatbot-config", {
+      const response = await apiRequest("/api/chatbot-configs", {
         method: "POST",
         headers: {
           'Content-Type': 'application/json'
@@ -35,12 +35,13 @@ export default function Embed() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save configuration');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to save configuration');
       }
 
       const data = await response.json();
-      setConfigId(data.config.id);
-      return data.config as ChatbotConfig;
+      setConfigId(data.id);
+      return data as ChatbotConfig;
     },
     onError: (error: Error) => {
       toast({
