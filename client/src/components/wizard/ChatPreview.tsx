@@ -21,7 +21,7 @@ export default function ChatPreview() {
   const [isOpen, setIsOpen] = useState(true); // Start with chat window open
 
   return (
-    <div className="relative w-full h-[400px] border rounded-lg bg-gray-100 p-3">
+    <div className="relative min-h-[550px] h-full border rounded-lg bg-gray-100 p-3">
       <div className="absolute bottom-3 right-3">
         {!isOpen && (
           <Button
@@ -39,7 +39,7 @@ export default function ChatPreview() {
 
         {isOpen && (
           <div
-            className="w-[280px] rounded-lg shadow-lg"
+            className="w-[320px] rounded-lg shadow-lg"
             style={{ backgroundColor }}
           >
             <div
@@ -68,7 +68,7 @@ export default function ChatPreview() {
               </Button>
             </div>
 
-            <div className="h-[240px] p-3 overflow-y-auto bg-white">
+            <div className="h-[400px] p-3 overflow-y-auto bg-white">
               <div className="flex gap-2 mb-3">
                 <Avatar className="h-6 w-6 flex-shrink-0">
                   {avatarUrl ? (

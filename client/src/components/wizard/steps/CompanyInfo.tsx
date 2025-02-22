@@ -2,10 +2,11 @@ import { useWizardStore } from "@/store/wizardStore";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 
 export default function CompanyInfo() {
-  const { companyName, updateConfig } = useWizardStore();
+  const { companyName, welcomeMessage, updateConfig } = useWizardStore();
   const [error, setError] = useState("");
 
   return (
@@ -18,7 +19,7 @@ export default function CompanyInfo() {
       </div>
 
       <Card className="p-6">
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="companyName">
               Company Name <span className="text-red-500">*</span>
@@ -34,8 +35,25 @@ export default function CompanyInfo() {
               className={error ? "border-red-500" : ""}
             />
             {error && <p className="text-sm text-red-500">{error}</p>}
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500">
               This name will be displayed in the chat window header
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="welcomeMessage">
+              Welcome Message <span className="text-red-500">*</span>
+            </Label>
+            <Textarea
+              id="welcomeMessage"
+              value={welcomeMessage}
+              onChange={(e) => updateConfig({ welcomeMessage: e.target.value })}
+              placeholder="Enter a friendly welcome message for your users"
+              className="resize-none"
+              rows={3}
+            />
+            <p className="text-sm text-gray-500">
+              This message will be shown when users first open the chat
             </p>
           </div>
         </div>
