@@ -93,9 +93,7 @@ export default function DocumentUpload({
     setSelectedModel(model);
     if (model !== "opensource") {
       setShowApiKeyDialog(true);
-      // Reset API key when changing models
       setApiKey("");
-      // Important: Do not reset model selection in parent yet
     } else {
       setApiKey("");
       setShowApiKeyDialog(false);
@@ -117,12 +115,8 @@ export default function DocumentUpload({
     const isValid = await checkAPIKey(apiKey, selectedModel);
     if (isValid) {
       setShowApiKeyDialog(false);
-      // Only update parent's model selection after successful validation
+      // Pass both the model and API key to parent
       onModelSelect(selectedModel, apiKey);
-      toast({
-        title: "Success",
-        description: `${selectedModel.charAt(0).toUpperCase() + selectedModel.slice(1)} API key validated successfully`,
-      });
     }
   };
 

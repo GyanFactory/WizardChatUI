@@ -96,17 +96,16 @@ export default function Steps() {
       formData.append("context", context);
       formData.append("projectId", projectId.toString());
 
-      // Only append API key if model is not opensource
       if (selectedModel !== "opensource" && apiKey) {
-        console.log("Uploading document with model:", selectedModel, "API Key present:", !!apiKey);
         const encryptedKey = encryptApiKey(apiKey);
         formData.append("apiKey", encryptedKey);
       }
 
-      // Log the form data for debugging
+      // Debug log
+      console.log("Uploading with model:", selectedModel);
       formData.forEach((value, key) => {
         if (key !== "file" && key !== "apiKey") {
-          console.log(`${key}:`, value);
+          console.log(`Form data - ${key}:`, value);
         }
       });
 
@@ -140,19 +139,9 @@ export default function Steps() {
     }
   };
 
-  const stepComponents = [
-    CompanyInfo,
-    DocumentUpload,
-    QAManagement,
-    Appearance,
-    Embed
-  ];
-
-  const CurrentStepComponent = stepComponents[currentStep];
-
   const validateStep = async () => {
     switch (currentStep) {
-      case 0: 
+      case 0:
         const companyInfoComponent = document.querySelector('#companyName');
         if (!companyName.trim()) {
           toast({
@@ -170,7 +159,7 @@ export default function Steps() {
           return false;
         }
         break;
-      case 1: 
+      case 1:
         if (!projectId) {
           toast({
             title: "Project Required",
@@ -195,6 +184,7 @@ export default function Steps() {
           });
           return false;
         }
+        console.log("Validating step with model:", selectedModel); // Debug log
         return await uploadDocument();
     }
     return true;
@@ -228,10 +218,20 @@ export default function Steps() {
     }, 100);
   };
 
+  const stepComponents = [
+    CompanyInfo,
+    DocumentUpload,
+    QAManagement,
+    Appearance,
+    Embed
+  ];
+
+  const CurrentStepComponent = stepComponents[currentStep];
+
   return (
     <div>
       <div className="min-h-[400px]">
-        <CurrentStepComponent 
+        <CurrentStepComponent
           projectId={projectId}
           onFileSelect={setSelectedFile}
           onContextChange={setContext}
