@@ -415,6 +415,7 @@ export function registerRoutes(app: Express): Server {
           throw new Error("Context is required");
         }
 
+        // Decrypt API key if provided
         if (apiKey) {
           apiKey = decryptApiKey(apiKey);
         }
@@ -427,23 +428,38 @@ export function registerRoutes(app: Express): Server {
           throw new Error("No QA pairs could be generated");
         }
 
-        // Generate embeddings using Python service
+        // Generate embeddings using Python service, now passing API key
         const pythonProcess = spawn("python", [
-          path.join(process.cwd(), "server/services/embeddings.py"),
-          extractedText
+          path.join(process.cwd(), "server/services/embeddings.py")
         ]);
 
         let embeddingsOutput = '';
+        let embeddingsError = '';
+
+        // Pass text and API key to the Python process
+        pythonProcess.stdin.write(JSON.stringify({
+          text: extractedText,
+          api_key: apiKey // Pass the API key for embeddings generation
+        }));
+        pythonProcess.stdin.end();
+
         pythonProcess.stdout.on('data', (data) => {
           embeddingsOutput += data;
         });
 
-        await new Promise((resolve, reject) => {
-          pythonProcess.on('close', (code) => {
-            if (code === 0) resolve(null);
-            else reject(new Error('Failed to generate embeddings'));
-          });
+        pythonProcess.stderr.on('data', (data) => {
+          embeddingsError += data;
+          console.error('Embeddings error:', data.toString());
         });
+
+        const exitCode = await new Promise((resolve) => {
+          pythonProcess.on('close', resolve);
+        });
+
+        if (exitCode !== 0) {
+          console.error('Embeddings error output:', embeddingsError);
+          throw new Error('Failed to generate embeddings: ' + embeddingsError);
+        }
 
         const embeddings = JSON.parse(embeddingsOutput);
 
