@@ -813,18 +813,61 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get("/api/admin/projects", async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !req.user?.isAdmin) {
+        return res.status(403).json({ message: "Not authorized" });
+      }
+
+      const projects = await storage.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error("Failed to fetch projects:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to fetch projects"
+      });
+    }
+  });
+
   app.get("/api/admin/usage-stats", async (req, res) => {
     try {
       if (!req.isAuthenticated() || !req.user?.isAdmin) {
         return res.status(403).json({ message: "Not authorized" });
       }
 
-      const { from, to } = req.query;
+      const { from, to, selectedUser, selectedProject } = req.query;
+
+      // Validate date parameters
       if (!from || !to || typeof from !== "string" || typeof to !== "string") {
         return res.status(400).json({ message: "Invalid date range" });
       }
 
-      const stats = await storage.getUsageStatsByDateRange(new Date(from), new Date(to));
+      const fromDate = new Date(from);
+      const toDate = new Date(to);
+
+      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+        return res.status(400).json({ message: "Invalid date format" });
+      }
+
+      // Get base stats for the date range
+      let stats = await storage.getUsageStatsByDateRange(fromDate, toDate);
+
+      // Filter by user if specified
+      if (selectedUser && selectedUser !== "all") {
+        const userId = parseInt(selectedUser as string);
+        if (!isNaN(userId)) {
+          stats = stats.filter(stat => stat.userId === userId);
+        }
+      }
+
+      // Filter by project if specified
+      if (selectedProject && selectedProject !== "all") {
+        const projectId = parseInt(selectedProject as string);
+        if (!isNaN(projectId)) {
+          stats = stats.filter(stat => stat.projectId === projectId);
+        }
+      }
+
       res.json(stats);
     } catch (error) {
       console.error("Failed to fetch usage stats:", error);
