@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 interface WizardState {
+  isEditing: boolean;
   currentStep: number;
   companyName: string;
   welcomeMessage: string;
@@ -20,7 +21,9 @@ interface WizardState {
   updateQAItem: (index: number, item: { question: string; answer: string }) => void;
   removeQAItem: (index: number) => void;
   setQAItems: (items: Array<{ question: string; answer: string }>) => void;
-  reset: () => void;  // Added reset function
+  reset: () => void;
+  loadProject: (projectData: any) => void;
+  setIsEditing: (isEditing: boolean) => void;
 }
 
 export const defaultAvatars = [
@@ -31,8 +34,8 @@ export const defaultAvatars = [
   "/avatars/bot-minimal.svg",
 ];
 
-// Define initial state as a constant to reuse in reset
 const initialState = {
+  isEditing: false,
   currentStep: 0,
   companyName: '',
   welcomeMessage: '',
@@ -62,5 +65,20 @@ export const useWizardStore = create<WizardState>((set) => ({
     qaItems: state.qaItems.filter((_, i) => i !== index)
   })),
   setQAItems: (items) => set({ qaItems: items }),
-  reset: () => set(initialState),  // Added reset function that restores initial state
+  reset: () => set(initialState),
+  loadProject: (projectData) => set((state) => ({
+    ...state,
+    companyName: projectData.companyName || '',
+    welcomeMessage: projectData.welcomeMessage || '',
+    primaryColor: projectData.primaryColor || initialState.primaryColor,
+    fontFamily: projectData.fontFamily || initialState.fontFamily,
+    position: projectData.position || initialState.position,
+    avatarUrl: projectData.avatarUrl || initialState.avatarUrl,
+    bubbleStyle: projectData.bubbleStyle || initialState.bubbleStyle,
+    backgroundColor: projectData.backgroundColor || initialState.backgroundColor,
+    buttonStyle: projectData.buttonStyle || initialState.buttonStyle,
+    qaItems: projectData.qaItems || [],
+    currentDocumentId: projectData.documentId || null,
+  })),
+  setIsEditing: (isEditing) => set({ isEditing }),
 }));

@@ -302,7 +302,7 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Button variant="outline" asChild>
-                          <a href="/">Edit</a>
+                          <a href={`/wizard?edit=${config.id}`}>Edit</a>
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
