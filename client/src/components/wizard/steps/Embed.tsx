@@ -6,20 +6,32 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation } from "@tanstack/react-query";
-import type { ChatbotConfig } from "@shared/schema";
 
 export default function Embed() {
-  const config = useWizardStore();
+  // Properly destructure the values we need from the store
+  const { 
+    companyName,
+    welcomeMessage,
+    primaryColor,
+    fontFamily,
+    position,
+    avatarUrl,
+    bubbleStyle,
+    backgroundColor,
+    buttonStyle,
+    isEditing,
+    id 
+  } = useWizardStore();
+
   const [configId, setConfigId] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
-  const isEditing = useWizardStore((state) => state.isEditing);
 
   // Save configuration when component mounts
   const { mutate: saveConfig, isPending } = useMutation({
     mutationFn: async () => {
       // Use PUT for updates, POST for new configs
       const endpoint = isEditing
-        ? `/api/chatbot-configs/${config.id}`
+        ? `/api/chatbot-configs/${id}`
         : "/api/chatbot-configs";
 
       const method = isEditing ? "PUT" : "POST";
@@ -30,15 +42,15 @@ export default function Embed() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          companyName: config.companyName,
-          welcomeMessage: config.welcomeMessage,
-          primaryColor: config.primaryColor,
-          fontFamily: config.fontFamily,
-          position: config.position,
-          avatarUrl: config.avatarUrl,
-          bubbleStyle: config.bubbleStyle,
-          backgroundColor: config.backgroundColor,
-          buttonStyle: config.buttonStyle,
+          companyName,
+          welcomeMessage,
+          primaryColor,
+          fontFamily,
+          position,
+          avatarUrl,
+          bubbleStyle,
+          backgroundColor,
+          buttonStyle,
         }),
       });
 
