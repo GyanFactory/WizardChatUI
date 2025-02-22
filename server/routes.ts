@@ -543,6 +543,49 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add POST endpoint for creating/updating chatbot configuration
+  app.post("/api/chatbot-configs", async (req, res) => {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    try {
+      const {
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      } = req.body;
+
+      const userId = req.user!.id;
+
+      const project = await storage.updateProject({
+        userId,
+        companyName,
+        welcomeMessage,
+        primaryColor,
+        fontFamily,
+        position,
+        avatarUrl,
+        bubbleStyle,
+        backgroundColor,
+        buttonStyle,
+      });
+
+      res.json(project);
+    } catch (error) {
+      console.error("Failed to save chatbot configuration:", error);
+      res.status(500).json({
+        message: error instanceof Error ? error.message : "Failed to save configuration"
+      });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;
