@@ -8,25 +8,28 @@ import {
 import { eq } from "drizzle-orm";
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pkg from 'pg';
-const { Client } = pkg;
+const { Pool } = pkg;
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 
 const PostgresSessionStore = connectPg(session);
 
-const client = new Client({
+// Create a connection pool instead of a single client
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 20, // Maximum number of clients in the pool
+  idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
+  connectionTimeoutMillis: 2000, // How long to wait before timing out when connecting a new client
 });
 
-// Connect with error handling and logging
-client.connect().then(() => {
-  console.log('Successfully connected to PostgreSQL database');
-}).catch(err => {
-  console.error('Failed to connect to PostgreSQL database:', err);
-  process.exit(1); // Exit if we can't connect to the database
+// Add error handling for the pool
+pool.on('error', (err, client) => {
+  console.error('Unexpected error on idle client', err);
+  // Don't exit the process on connection errors
 });
 
-const db = drizzle(client);
+// Initialize drizzle with the pool
+const db = drizzle(pool);
 
 export interface IStorage {
   // User operations
@@ -69,47 +72,51 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     this.sessionStore = new PostgresSessionStore({
-      conObject: {
-        connectionString: process.env.DATABASE_URL,
-      },
+      pool: pool, // Use the pool for session store
       createTableIfMissing: true,
     });
   }
 
-  // User operations
-  async getUser(id: number): Promise<User | undefined> {
+  // Add private helper method for error handling
+  private async executeWithRetry<T>(operation: () => Promise<T>): Promise<T> {
     try {
-      const results = await db.select().from(users).where(eq(users.id, id));
-      return results[0];
-    } catch (error) {
-      console.error('Error getting user:', error);
+      return await operation();
+    } catch (error: any) {
+      if (error.code === '57P01') { // Termination error code
+        console.warn('Database connection terminated, retrying operation...');
+        // Small delay before retry
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return await operation();
+      }
       throw error;
     }
+  }
+
+  // Update all methods to use executeWithRetry
+  async getUser(id: number): Promise<User | undefined> {
+    return this.executeWithRetry(async () => {
+      const results = await db.select().from(users).where(eq(users.id, id));
+      return results[0];
+    });
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
     const normalizedEmail = email.toLowerCase().trim();
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.select().from(users).where(eq(users.email, normalizedEmail));
       return results[0];
-    } catch (error) {
-      console.error('Error getting user by email:', error);
-      throw error;
-    }
+    });
   }
 
   async getUserByVerificationToken(token: string): Promise<User | undefined> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.select().from(users).where(eq(users.verificationToken, token));
       return results[0];
-    } catch (error) {
-      console.error('Error getting user by verification token:', error);
-      throw error;
-    }
+    });
   }
 
   async createUser(insertUser: InsertUser & { verificationToken: string }): Promise<User> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.insert(users).values({
         email: insertUser.email.toLowerCase().trim(),
         password: insertUser.password,
@@ -118,147 +125,111 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       }).returning();
       return results[0];
-    } catch (error) {
-      console.error('Error creating user:', error);
-      throw error;
-    }
+    });
   }
 
   async verifyUser(userId: number): Promise<User> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(users)
         .set({ isVerified: true, verificationToken: null })
         .where(eq(users.id, userId))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error verifying user:', error);
-      throw error;
-    }
+    });
   }
 
   async updateUserPassword(userId: number, newPassword: string): Promise<User> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(users)
         .set({ password: newPassword })
         .where(eq(users.id, userId))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating user password:', error);
-      throw error;
-    }
+    });
   }
 
   async clearUsers(): Promise<void> {
-    try {
+    return this.executeWithRetry(async () => {
       await db.delete(users);
-    } catch (error) {
-      console.error('Error clearing users:', error);
-      throw error;
-    }
+    });
   }
 
-  // Project operations
+  // Project operations with retry logic
   async getProject(id: number): Promise<Project | undefined> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.select().from(projects).where(eq(projects.id, id));
       return results[0];
-    } catch (error) {
-      console.error('Error getting project:', error);
-      throw error;
-    }
+    });
   }
 
   async getProjectsByUser(userId: number): Promise<Project[]> {
-    try {
+    return this.executeWithRetry(async () => {
       return await db.select().from(projects).where(eq(projects.userId, userId));
-    } catch (error) {
-      console.error('Error getting projects by user:', error);
-      throw error;
-    }
+    });
   }
 
   async createProject(project: InsertProject): Promise<Project> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.insert(projects).values({
         ...project,
         status: 'pending',
         createdAt: new Date(),
       }).returning();
       return results[0];
-    } catch (error) {
-      console.error('Error creating project:', error);
-      throw error;
-    }
+    });
   }
 
   async updateProject(id: number, project: Partial<InsertProject>): Promise<Project> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(projects)
         .set(project)
         .where(eq(projects.id, id))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating project:', error);
-      throw error;
-    }
+    });
   }
 
   async updateProjectStatus(id: number, status: string): Promise<Project> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(projects)
         .set({ status })
         .where(eq(projects.id, id))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating project status:', error);
-      throw error;
-    }
+    });
   }
 
-  // Document operations
+  // Document operations with retry logic
   async getDocument(id: number): Promise<Document | undefined> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.select().from(documents).where(eq(documents.id, id));
       return results[0];
-    } catch (error) {
-      console.error('Error getting document:', error);
-      throw error;
-    }
+    });
   }
 
   async getDocumentsByProject(projectId: number): Promise<Document[]> {
-    try {
+    return this.executeWithRetry(async () => {
       return await db.select().from(documents).where(eq(documents.projectId, projectId));
-    } catch (error) {
-      console.error('Error getting documents by project:', error);
-      throw error;
-    }
+    });
   }
 
   async createDocument(doc: InsertDocument): Promise<Document> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.insert(documents).values({
         ...doc,
         processingStatus: 'pending',
         createdAt: new Date(),
       }).returning();
       return results[0];
-    } catch (error) {
-      console.error('Error creating document:', error);
-      throw error;
-    }
+    });
   }
 
   async updateDocumentEmbeddings(id: number, embeddings: number[][]): Promise<Document> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(documents)
         .set({ 
@@ -268,86 +239,62 @@ export class DatabaseStorage implements IStorage {
         .where(eq(documents.id, id))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating document embeddings:', error);
-      throw error;
-    }
+    });
   }
 
   async updateDocumentStatus(id: number, status: string): Promise<Document> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(documents)
         .set({ processingStatus: status })
         .where(eq(documents.id, id))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating document status:', error);
-      throw error;
-    }
+    });
   }
 
-  // QA operations
+  // QA operations with retry logic
   async getQAItems(projectId: number): Promise<QAItem[]> {
-    try {
+    return this.executeWithRetry(async () => {
       return await db.select().from(qaItems).where(eq(qaItems.projectId, projectId));
-    } catch (error) {
-      console.error('Error getting QA items:', error);
-      throw error;
-    }
+    });
   }
 
   async getQAItemsByDocument(documentId: number): Promise<QAItem[]> {
-    try {
+    return this.executeWithRetry(async () => {
       return await db.select().from(qaItems).where(eq(qaItems.documentId, documentId));
-    } catch (error) {
-      console.error('Error getting QA items by document:', error);
-      throw error;
-    }
+    });
   }
 
   async createQAItem(item: InsertQAItem): Promise<QAItem> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.insert(qaItems).values(item).returning();
       return results[0];
-    } catch (error) {
-      console.error('Error creating QA item:', error);
-      throw error;
-    }
+    });
   }
 
   async createQAItems(items: InsertQAItem[]): Promise<QAItem[]> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db.insert(qaItems).values(items).returning();
       return results;
-    } catch (error) {
-      console.error('Error creating QA items:', error);
-      throw error;
-    }
+    });
   }
 
   async updateQAItem(id: number, item: Partial<InsertQAItem>): Promise<QAItem> {
-    try {
+    return this.executeWithRetry(async () => {
       const results = await db
         .update(qaItems)
         .set(item)
         .where(eq(qaItems.id, id))
         .returning();
       return results[0];
-    } catch (error) {
-      console.error('Error updating QA item:', error);
-      throw error;
-    }
+    });
   }
 
   async deleteQAItem(id: number): Promise<void> {
-    try {
+    return this.executeWithRetry(async () => {
       await db.delete(qaItems).where(eq(qaItems.id, id));
-    } catch (error) {
-      console.error('Error deleting QA item:', error);
-      throw error;
-    }
+    });
   }
 }
 
