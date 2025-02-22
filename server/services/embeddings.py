@@ -1,9 +1,9 @@
 import sys
 import json
 import openai
-from typing import List
+from typing import List, Optional
 
-def get_embeddings(text: str, api_key: str = None) -> List[float]:
+def get_embeddings(text: str, api_key: Optional[str] = None) -> List[float]:
     """Generate embeddings using OpenAI's ada-002 model"""
     try:
         if not api_key:
@@ -61,18 +61,22 @@ def main():
         input_data = json.loads(sys.stdin.read())
         text = input_data.get('text', '').strip()
         api_key = input_data.get('api_key')
+        is_query = input_data.get('is_query', False)
 
         if not text:
             raise ValueError("No input text provided")
         if not api_key:
             raise ValueError("No API key provided")
 
-        # Generate embeddings for each chunk
-        chunks = chunk_text(text)
-        embeddings = [get_embeddings(chunk, api_key) for chunk in chunks]
-
-        # Output JSON result
-        print(json.dumps(embeddings))
+        # For queries, generate a single embedding
+        if is_query:
+            embedding = get_embeddings(text, api_key)
+            print(json.dumps(embedding))
+        else:
+            # For documents, chunk and generate embeddings for each chunk
+            chunks = chunk_text(text)
+            embeddings = [get_embeddings(chunk, api_key) for chunk in chunks]
+            print(json.dumps(embeddings))
         sys.exit(0)
 
     except Exception as e:

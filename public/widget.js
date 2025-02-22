@@ -23,14 +23,14 @@
         // Create widget DOM
         this.createWidgetDOM();
 
-        // Connect WebSocket
-        this.connectWebSocket();
-
         // Initialize event listeners
         this.initializeEventListeners();
 
         // Open chat window by default
         this.toggleChatWindow(true);
+
+        // Add welcome message
+        this.addMessage(this.config.welcomeMessage || "Hi! How can I help you today?", 'bot');
       } catch (error) {
         console.error('Failed to initialize chat widget:', error);
       }
@@ -168,6 +168,27 @@
           background-color: ${this.config.primaryColor};
           color: white;
         }
+
+        .typing-indicator {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        .typing-indicator span {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          background-color: #ccc;
+          border-radius: 50%;
+          animation: typing-blink 1s ease-in-out infinite;
+        }
+
+        @keyframes typing-blink {
+          0% { opacity: 0; }
+          50% { opacity: 1; }
+          100% { opacity: 0; }
+        }
       `;
 
       const styleSheet = document.createElement('style');
@@ -219,9 +240,6 @@
       this.container.appendChild(chatWindow);
       this.container.appendChild(button);
       document.body.appendChild(this.container);
-
-      // Add welcome message
-      this.addMessage(this.config.welcomeMessage, 'bot');
     }
 
     toggleChatWindow(show) {
@@ -237,38 +255,29 @@
       }
     }
 
-    connectWebSocket() {
+
+    async sendMessageToAPI(message) {
       try {
-        // Get the current host (includes port if any)
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsHost = window.location.host;
-        const wsUrl = `${wsProtocol}//${wsHost}/ws`;
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            message,
+            configId: this.configId,
+          }),
+        });
 
-        console.log('Connecting to WebSocket:', wsUrl);
-        this.socket = new WebSocket(wsUrl);
+        if (!response.ok) {
+          throw new Error('Failed to get response from chat API');
+        }
 
-        this.socket.onopen = () => {
-          console.log('WebSocket connected successfully');
-        };
-
-        this.socket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'answer') {
-            this.addMessage(data.content, 'bot');
-          }
-        };
-
-        this.socket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          this.addMessage('Sorry, there was an error connecting to the chat service.', 'bot');
-        };
-
-        this.socket.onclose = () => {
-          console.log('WebSocket connection closed');
-          setTimeout(() => this.connectWebSocket(), 5000); // Try to reconnect after 5 seconds
-        };
+        const data = await response.json();
+        return data.response;
       } catch (error) {
-        console.error('Failed to connect WebSocket:', error);
+        console.error('Error sending message:', error);
+        return 'Sorry, I encountered an error processing your request.';
       }
     }
 
@@ -288,16 +297,23 @@
       });
 
       // Send message
-      const sendMessage = () => {
+      const sendMessage = async () => {
         const message = input.value.trim();
-        if (message && this.socket && this.socket.readyState === WebSocket.OPEN) {
+        if (message) {
           this.addMessage(message, 'user');
-          this.socket.send(JSON.stringify({
-            type: 'question',
-            content: message,
-            configId: this.configId
-          }));
           input.value = '';
+
+          // Show typing indicator
+          const typingIndicator = this.addTypingIndicator();
+
+          // Get response from API
+          const response = await this.sendMessageToAPI(message);
+
+          // Remove typing indicator
+          typingIndicator.remove();
+
+          // Add response
+          this.addMessage(response, 'bot');
         }
       };
 
@@ -308,6 +324,22 @@
           sendMessage();
         }
       });
+    }
+
+    addTypingIndicator() {
+      const messagesContainer = this.container.querySelector('.ai-chat-messages');
+      const indicatorDiv = document.createElement('div');
+      indicatorDiv.className = 'ai-chat-message bot';
+      indicatorDiv.innerHTML = `
+        <div class="ai-chat-bubble typing-indicator">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      `;
+      messagesContainer.appendChild(indicatorDiv);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      return indicatorDiv;
     }
 
     addMessage(content, type) {

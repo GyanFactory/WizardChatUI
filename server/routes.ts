@@ -343,6 +343,134 @@ A: [Clear, comprehensive answer]`;
   }
 }
 
+// Chat endpoint for embeddings-based responses
+app.post("/api/chat", async (req, res) => {
+  try {
+    const { message, configId } = req.body;
+
+    if (!message || !configId) {
+      return res.status(400).json({ error: "Message and configId are required" });
+    }
+
+    // Get project configuration
+    const project = await storage.getProject(configId);
+    if (!project) {
+      return res.status(404).json({ error: "Chat configuration not found" });
+    }
+
+    // Get documents and their embeddings for this project
+    const documents = await storage.getDocumentsByProject(project.id);
+    if (!documents.length) {
+      return res.status(404).json({ error: "No documents found for this chat" });
+    }
+
+    // Get embeddings for the user's message
+    const pythonProcess = spawn("python", [
+      path.join(process.cwd(), "server/services/embeddings.py")
+    ]);
+
+    let embeddingsOutput = '';
+    let embeddingsError = '';
+
+    // Pass text to the Python process
+    pythonProcess.stdin.write(JSON.stringify({
+      text: message,
+      api_key: process.env.OPENAI_API_KEY,
+      is_query: true
+    }));
+    pythonProcess.stdin.end();
+
+    pythonProcess.stdout.on('data', (data) => {
+      embeddingsOutput += data;
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      embeddingsError += data;
+      console.error('Embeddings error:', data.toString());
+    });
+
+    const exitCode = await new Promise((resolve) => {
+      pythonProcess.on('close', resolve);
+    });
+
+    if (exitCode !== 0) {
+      console.error('Embeddings error output:', embeddingsError);
+      throw new Error('Failed to generate embeddings: ' + embeddingsError);
+    }
+
+    const queryEmbedding = JSON.parse(embeddingsOutput);
+
+    // Find most relevant document using cosine similarity
+    let bestMatch = null;
+    let highestSimilarity = -1;
+
+    for (const doc of documents) {
+      const similarity = calculateCosineSimilarity(queryEmbedding, doc.embeddings);
+      if (similarity > highestSimilarity) {
+        highestSimilarity = similarity;
+        bestMatch = doc;
+      }
+    }
+
+    if (!bestMatch || highestSimilarity < 0.7) {
+      return res.json({
+        response: "I couldn't find a relevant answer in my knowledge base. Could you try rephrasing your question?"
+      });
+    }
+
+    // Get QA items for the most relevant document
+    const qaItems = await storage.getQAItemsByDocument(bestMatch.id);
+
+    // Find most relevant QA pair
+    let bestQA = null;
+    highestSimilarity = -1;
+
+    for (const qa of qaItems) {
+      const combinedText = `${qa.question} ${qa.answer}`;
+      const qaProcess = spawn("python", [
+        path.join(process.cwd(), "server/services/embeddings.py")
+      ]);
+
+      let qaEmbeddingsOutput = '';
+      qaProcess.stdin.write(JSON.stringify({
+        text: combinedText,
+        api_key: process.env.OPENAI_API_KEY,
+        is_query: true
+      }));
+      qaProcess.stdin.end();
+
+      qaProcess.stdout.on('data', (data) => {
+        qaEmbeddingsOutput += data;
+      });
+
+      const qaExitCode = await new Promise((resolve) => {
+        qaProcess.on('close', resolve);
+      });
+
+      if (qaExitCode === 0) {
+        const qaEmbedding = JSON.parse(qaEmbeddingsOutput);
+        const similarity = calculateCosineSimilarity(queryEmbedding, qaEmbedding);
+        if (similarity > highestSimilarity) {
+          highestSimilarity = similarity;
+          bestQA = qa;
+        }
+      }
+    }
+
+    // Send the most relevant answer or a fallback response
+    res.json({
+      response: bestQA ? bestQA.answer : bestMatch.content
+    });
+
+  } catch (error) {
+    console.error('Chat API error:', error);
+    res.status(500).json({
+      error: "Failed to process chat message",
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 export function registerRoutes(app: Express): Server {
   // Add validation endpoints for new APIs
   app.post("/api/validate-huggingface-key", async (req, res) => {
@@ -896,4 +1024,12 @@ export function registerRoutes(app: Express): Server {
   const httpServer = createServer(app);
 
   return httpServer;
+}
+
+// Add cosine similarity calculation function
+function calculateCosineSimilarity(vec1: number[], vec2: number[]): number {
+  const dotProduct = vec1.reduce((acc, val, i) => acc + val * vec2[i], 0);
+  const norm1 = Math.sqrt(vec1.reduce((acc, val) => acc + val * val, 0));
+  const norm2 = Math.sqrt(vec2.reduce((acc, val) => acc + val * val, 0));
+  return dotProduct / (norm1 * norm2);
 }

@@ -114,7 +114,7 @@ export default function Steps() {
 
       const data = await response.json();
       setQAItems(data.qaItems);
-      setDocumentProcessed(true); 
+      setDocumentProcessed(true);
       toast({
         title: "Success!",
         description: `Document processed successfully. You can now test the chatbot in the preview.`,
@@ -178,7 +178,7 @@ export default function Steps() {
           });
           return false;
         }
-        console.log("Validating step with model:", selectedModel); 
+        console.log("Validating step with model:", selectedModel);
         return await uploadDocument();
     }
     return true;
@@ -214,8 +214,18 @@ export default function Steps() {
 
   const stepComponents = [
     CompanyInfo,
-    DocumentUpload,
-    QAManagement,
+    (props: any) => (
+      <DocumentUpload
+        {...props}
+        documentProcessed={documentProcessed}
+      />
+    ),
+    (props: any) => (
+      <QAManagement
+        {...props}
+        documentProcessed={documentProcessed}
+      />
+    ),
     Appearance,
     Embed
   ];
@@ -230,12 +240,10 @@ export default function Steps() {
           onFileSelect={setSelectedFile}
           onContextChange={setContext}
           onModelSelect={(model: string, key?: string) => {
-            console.log("Model selected in Steps:", model, "API Key present:", !!key);
             setSelectedModel(model);
             setApiKey(key);
           }}
           qaItems={qaItems}
-          documentProcessed={documentProcessed} 
         />
       </div>
 

@@ -18,10 +18,12 @@ interface QAItem {
 }
 
 interface QAManagementProps {
+  projectId?: number | null;
   qaItems?: QAItem[];
+  documentProcessed?: boolean;
 }
 
-export default function QAManagement({ qaItems = [] }: QAManagementProps) {
+export default function QAManagement({ qaItems = [], projectId, documentProcessed }: QAManagementProps) {
   const { currentDocumentId } = useWizardStore();
   const [newQuestion, setNewQuestion] = useState("");
   const [newAnswer, setNewAnswer] = useState("");

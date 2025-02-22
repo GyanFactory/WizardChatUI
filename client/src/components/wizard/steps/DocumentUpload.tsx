@@ -16,6 +16,7 @@ interface DocumentUploadProps {
   onFileSelect: (file: FileWithPath | null) => void;
   onContextChange: (context: string) => void;
   onModelSelect: (model: string, apiKey?: string) => void;
+  documentProcessed?: boolean; // Add this prop
 }
 
 export default function DocumentUpload({ 
